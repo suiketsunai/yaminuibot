@@ -9,6 +9,7 @@ alembic = "*"
 python-dotenv = "*"
 tomli = "*"
 sqlalchemy-repr = "*"
+psycopg2 = "*"
 
 [dev-packages]
 black = "*"
