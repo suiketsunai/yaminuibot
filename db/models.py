@@ -1,4 +1,5 @@
 from sqlalchemy import (
+    UniqueConstraint,
     ForeignKey,
     Integer,
     Column,
@@ -45,12 +46,14 @@ class Channel(Base):
     name = Column(String)
     # if bot is admin
     is_admin = Column(Boolean, default=False, nullable=False)
-    # 1-1 Admin with Channels
+    # RL: 1-1 Admin with Channels
     admin = relationship("User", back_populates="channel")
     # FK: admin user
     admin_id = Column(BigInteger, ForeignKey("user.id"))
     # last post number
     last_post = Column(BigInteger)
+    # RL: 1-M Channnel with artworks
+    artworks = relationship("ArtWork", back_populates="channel")
 
 
 class User(Base):
@@ -68,7 +71,7 @@ class User(Base):
     full_name = Column(String)
     # nick name if available
     nick_name = Column(String)
-    # 1-1 Admin with Channel
+    # RL: 1-1 Admin with Channel
     channel = relationship("Channel", back_populates="admin", uselist=False)
     # enable posting video and gifs
     media_mode = Column(Boolean, default=False, nullable=False)
@@ -85,7 +88,7 @@ class User(Base):
 
     # pixiv style
     pixiv_style = Column(Integer, default=1, nullable=False)
-    # TODO: replace 1 and 2 with values
+    # TODO: replace 0 and 1 with values
     @validates("pixiv_style")
     def validate_forwarding(self, key, value):
         if value < 0 or value > 1:
@@ -96,3 +99,34 @@ class User(Base):
     last_info = Column(JSON)
     # in case if user should be banned
     is_banned = Column(Boolean, default=False, nullable=False)
+
+
+class ArtWork(Base):
+    __tablename__ = "artwork"
+    # artwork record id
+    id = Column(BigInteger, primary_key=True)
+    # twitter or pixiv?
+    type = Column(Integer, nullable=False)
+    # TODO: replace 0 for twitter and 1 for pixiv with values
+    @validates("type")
+    def validate_type(self, key, value):
+        if value < 0 or value > 1:
+            raise ValueError(f"Invalid value for field {key!r}.")
+        return value
+
+    # artwork id
+    aid = Column(BigInteger, nullable=False)
+    # primary key
+    UniqueConstraint("type", "aid", name="uix_artwork")
+    # RL: M-1 Artwork in Channels
+    channel = relationship("Channel", back_populates="artworks")
+    # FK: admin user
+    channel_id = Column(BigInteger, ForeignKey("channel.id"))
+    # channel post id
+    post_id = Column(BigInteger, nullable=False)
+    # files
+    files = Column(JSON)
+    # files count
+    @property
+    def count(self):
+        return len(self.files)
