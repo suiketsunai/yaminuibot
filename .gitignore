@@ -154,5 +154,8 @@ cython_debug/
 # VS Code
 .vscode
 
+# Databases
+*.db
+
 # Other stuff
 .*/
