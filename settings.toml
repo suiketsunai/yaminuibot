@@ -1,0 +1,8 @@
+[DEFAULT]
+
+[log]
+# see logging levels
+level = "DEBUG"
+# see formatting settings
+form = "%(asctime)s > %(name)s [%(levelname)s]: %(message)s"
+
