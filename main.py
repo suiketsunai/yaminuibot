@@ -1,5 +1,6 @@
 import os
 import re
+import json
 import logging
 
 from pathlib import Path
@@ -115,6 +116,23 @@ def setup_logging():
         logging.getLogger().addHandler(fh)
     else:
         log.info("Logging to file disabled.")
+
+
+def row2dict(row):
+    return {
+        column.name: getattr(row, column.name)
+        for column in row.__table__.columns
+    }
+
+
+def dumper(table):
+    with Session(engine) as s:
+        return [row2dict(obj) for obj in s.query(table)]
+
+
+def dumping():
+    json.dump(dumper(User), Path("users.json").open("w"), indent=4)
+    json.dump(dumper(Channel), Path("channels.json").open("w"), indent=4)
 
 
 def formatter(query: str):
