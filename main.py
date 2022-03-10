@@ -12,6 +12,13 @@ from dotenv import load_dotenv
 # reading setings
 import tomli
 
+# working with database
+from sqlalchemy import create_engine
+from sqlalchemy.orm import Session
+
+# database models
+from db.models import User, Channel
+
 # current timestamp & this file directory
 date_run = datetime.now()
 file_dir = Path(__file__).parent
@@ -22,6 +29,14 @@ config = tomli.load(Path(os.environ["PATH_SETTINGS"]).open("rb"))
 
 # get logger
 log = logging.getLogger("yaminuichan")
+
+# session settings
+engine = create_engine(
+    os.environ["DATABASE_URI"],
+    echo=True,
+    echo_pool="debug",
+    future=True,
+)
 
 ################################################################################
 # named tuples
@@ -120,6 +135,21 @@ def formatter(query: str):
             # add to response list
             response.append(Link(re_type["type"], _link, int(link.group("id"))))
     return response
+
+
+def migrate_db():
+    src = Path(".src/")
+    users = json.loads((src / "users.json").read_bytes())
+    channels = json.loads((src / "channels.json").read_bytes())
+
+    with Session(engine) as s:
+        for user in users:
+            s.add(User(**user))
+        s.commit()
+
+        for channel in channels:
+            s.add(Channel(**channel))
+        s.commit()
 
 
 def main():
