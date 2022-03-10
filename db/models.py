@@ -4,6 +4,7 @@ from sqlalchemy import (
     Integer,
     Column,
     BigInteger,
+    DateTime,
     String,
     Boolean,
     JSON,
@@ -44,6 +45,8 @@ class Channel(Base):
 
     # channel name
     name = Column(String)
+    # channel link
+    link = Column(String)
     # if bot is admin
     is_admin = Column(Boolean, default=False, nullable=False)
     # RL: 1-1 Admin with Channels
@@ -104,7 +107,7 @@ class User(Base):
 class ArtWork(Base):
     __tablename__ = "artwork"
     # artwork record id
-    id = Column(BigInteger, primary_key=True)
+    id = Column(BigInteger().with_variant(Integer, "sqlite"), primary_key=True)
     # twitter or pixiv?
     type = Column(Integer, nullable=False)
     # TODO: replace 0 for twitter and 1 for pixiv with values
@@ -116,17 +119,27 @@ class ArtWork(Base):
 
     # artwork id
     aid = Column(BigInteger, nullable=False)
-    # primary key
-    UniqueConstraint("type", "aid", name="uix_artwork")
     # RL: M-1 Artwork in Channels
     channel = relationship("Channel", back_populates="artworks")
     # FK: admin user
     channel_id = Column(BigInteger, ForeignKey("channel.id"))
     # channel post id
     post_id = Column(BigInteger, nullable=False)
+    # dote when artwork posted
+    post_date = Column(DateTime(timezone=True))
+    # if forwarded and not in db
+    forwarded = Column(Boolean, default=False, nullable=False)
     # files
     files = Column(JSON)
     # files count
     @property
     def count(self):
         return len(self.files)
+
+    # add unique constraints
+    __table_args__ = (
+        # no double posts
+        UniqueConstraint("channel_id", "post_id", name="uix_post"),
+        # ideally:
+        # UniqueConstraint("type", "aid", name="uix_artwork"),
+    )
