@@ -15,10 +15,13 @@ import tomli
 
 # working with database
 from sqlalchemy import create_engine
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, aliased
 
 # database models
-from db.models import User, Channel
+from db.models import User, Channel, ArtWork
+
+# parsing datetime
+from dateutil.parser import parse
 
 # current timestamp & this file directory
 date_run = datetime.now()
@@ -155,6 +158,14 @@ def formatter(query: str):
     return response
 
 
+def check_message(message: dict):
+    if message["type"] == "message":
+        for item in message["text"]:
+            if isinstance(item, dict) and item.get("type") == "link":
+                return formatter(item["text"])
+    return []
+
+
 def migrate_db():
     src = Path(".src/")
     users = json.loads((src / "users.json").read_bytes())
@@ -169,9 +180,67 @@ def migrate_db():
             s.add(Channel(**channel))
         s.commit()
 
+    dirs = [cid for cid in src.iterdir() if cid.is_dir()]
+    with Session(engine) as s:
+        chans = {str(channel.cid): channel for channel in s.query(Channel)}
+        forwarded = {str(channel.cid): [] for channel in s.query(Channel)}
+
+    for path in dirs:
+        channel = chans[path.name]
+        messages = json.loads((path / "result.json").read_bytes())["messages"]
+        with Session(engine) as s:
+            for message in messages:
+                if not message.get("forwarded_from", None):
+                    for artwork in check_message(message):
+                        s.add(
+                            ArtWork(
+                                aid=artwork.id,
+                                type=artwork.type,
+                                post_id=message["id"],
+                                post_date=parse(message["date"]),
+                                channel=channel,
+                            )
+                        )
+            channel.last_post = messages[-1]["id"]
+            s.commit()
+
+    for path in dirs:
+        channel = chans[path.name]
+        messages = json.loads((path / "result.json").read_bytes())["messages"]
+        with Session(engine) as s:
+            for message in messages:
+                if message.get("forwarded_from", None):
+                    for artwork in check_message(message):
+                        q = (
+                            s.query(ArtWork)
+                            .where(ArtWork.aid == artwork.id)
+                            .where(ArtWork.type == artwork.type)
+                        )
+                        if q.count():
+                            if q.where(ArtWork.forwarded == True).count():
+                                continue
+                            else:
+                                forwarded[path.name].append(message)
+                        else:
+                            s.add(
+                                ArtWork(
+                                    aid=artwork.id,
+                                    type=artwork.type,
+                                    post_id=message["id"],
+                                    post_date=parse(message["date"]),
+                                    channel=channel,
+                                    forwarded=True,
+                                )
+                            )
+            s.commit()
+        Path(src / "forwarded.json").write_text(json.dumps(forwarded, indent=4))
+
 
 def main():
     setup_logging()
+
+    # migrate db if needed
+    migrate_db()
 
 
 if __name__ == "__main__":

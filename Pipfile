@@ -10,6 +10,7 @@ python-dotenv = "*"
 tomli = "*"
 sqlalchemy-repr = "*"
 psycopg2 = "*"
+python-dateutil = "*"
 
 [dev-packages]
 black = "*"
