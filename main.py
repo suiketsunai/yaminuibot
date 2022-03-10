@@ -1,8 +1,10 @@
 import os
+import re
 import logging
 
 from pathlib import Path
 from datetime import datetime
+from collections import namedtuple
 
 # working with env
 from dotenv import load_dotenv
@@ -20,6 +22,51 @@ config = tomli.load(Path(os.environ["PATH_SETTINGS"]).open("rb"))
 
 # get logger
 log = logging.getLogger("yaminuichan")
+
+################################################################################
+# named tuples
+################################################################################
+
+Link = namedtuple("Link", ["type", "link", "id"])
+
+
+################################################################################
+# links
+################################################################################
+
+# link types
+TWITTER = 0
+PIXIV = 1
+
+# link dictionary
+src = {
+    "twitter": {
+        "re": r"""(?x)
+            (?:
+                (?:www\.)?
+                (?:twitter\.com\/)
+                (?P<author>.+?)\/
+                (?:status\/)
+            )
+            (?P<id>\d+)
+        """,
+        "link": "twitter.com/{author}/status/{id}",
+        "type": TWITTER,
+    },
+    "pixiv": {
+        "re": r"""(?x)
+            (?:
+                (?:www\.)?
+                (?:pixiv\.net\/)
+                (?:\w{2}\/)?
+                (?:artworks\/)
+            )
+            (?P<id>\d+)
+        """,
+        "link": "www.pixiv.net/artworks/{id}",
+        "type": PIXIV,
+    },
+}
 
 
 def setup_logging():
@@ -53,6 +100,26 @@ def setup_logging():
         logging.getLogger().addHandler(fh)
     else:
         log.info("Logging to file disabled.")
+
+
+def formatter(query: str):
+    """Exctracts and formates links in text
+
+    Args:
+        query (str): text
+
+    Returns:
+        list: list of Links
+    """
+    response = []
+    for re_key, re_type in src.items():
+        for link in re.finditer(re_type["re"], query):
+            # dictionary keys = format args
+            _link = "https://" + re_type["link"].format(**link.groupdict())
+            log.info(f"Inline: Received link {re_key}: {_link}.")
+            # add to response list
+            response.append(Link(re_type["type"], _link, int(link.group("id"))))
+    return response
 
 
 def main():
