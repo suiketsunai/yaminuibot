@@ -128,14 +128,22 @@ def row2dict(row):
     }
 
 
-def dumper(table):
+def dumper(table, filename):
+    src = Path(".src")
     with Session(engine) as s:
-        return [row2dict(obj) for obj in s.query(table)]
+        (src / filename).with_suffix(".json").write_text(
+            json.dumps(
+                [row2dict(obj) for obj in s.query(table)],
+                indent=4,
+                default=str,
+            )
+        )
 
 
-def dumping():
-    json.dump(dumper(User), Path("users.json").open("w"), indent=4)
-    json.dump(dumper(Channel), Path("channels.json").open("w"), indent=4)
+def dump_db():
+    dumper(User, "users")
+    dumper(Channel, "channels")
+    dumper(ArtWork, "artworks")
 
 
 def formatter(query: str):
@@ -167,7 +175,7 @@ def check_message(message: dict):
 
 
 def migrate_db():
-    src = Path(".src/")
+    src = Path(".src")
     users = json.loads((src / "users.json").read_bytes())
     channels = json.loads((src / "channels.json").read_bytes())
 
