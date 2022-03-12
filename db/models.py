@@ -19,6 +19,19 @@ from sqlalchemy.orm import (
 # pretty __repr__ and __str__
 from sqlalchemy_repr import RepresentableBase
 
+# pixiv styles
+pixiv = (
+    IMAGE_LINK,
+    IMAGE_INFO_LINK,
+    INFO_LINK,
+) = range(3)
+
+# link types
+types = (
+    TWITTER,
+    PIXIV,
+) = range(2)
+
 # base class
 Base = declarative_base(cls=RepresentableBase)
 
@@ -91,12 +104,12 @@ class User(Base):
 
     # pixiv style
     pixiv_style = Column(Integer, default=1, nullable=False)
-    # TODO: replace 0 and 1 with values
+
     @validates("pixiv_style")
     def validate_forwarding(self, key, value):
-        if value < 0 or value > 1:
-            raise ValueError(f"Invalid value for field {key!r}.")
-        return value
+        if pixiv[0] <= value <= pixiv[-1]:
+            return value
+        raise ValueError(f"Invalid value {value!r} for field {key!r}.")
 
     # all info about the last link, depending on the type
     last_info = Column(JSON)
@@ -110,12 +123,12 @@ class ArtWork(Base):
     id = Column(BigInteger().with_variant(Integer, "sqlite"), primary_key=True)
     # twitter or pixiv?
     type = Column(Integer, nullable=False)
-    # TODO: replace 0 for twitter and 1 for pixiv with values
+
     @validates("type")
     def validate_type(self, key, value):
-        if value < 0 or value > 1:
-            raise ValueError(f"Invalid value for field {key!r}.")
-        return value
+        if types[0] <= value <= types[-1]:
+            return value
+        raise ValueError(f"Invalid value {value!r} for field {key!r}.")
 
     # artwork id
     aid = Column(BigInteger, nullable=False)
