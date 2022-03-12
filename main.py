@@ -279,10 +279,37 @@ def migrate_db() -> None:
 # telegram helper function
 ################################################################################
 
+# quick reply
+def reply(update: Update, text: str, **kwargs):
+    return update.message.reply_markdown_v2(
+        reply_to_message_id=update.message.message_id,
+        text=text,
+        **kwargs,
+    )
+
 
 ################################################################################
 # telegram bot commands
 ################################################################################
+
+
+def command_start(update: Update, _) -> None:
+    """Start the bot"""
+    with Session(engine) as s:
+        if not s.get(db.User, update.effective_chat.id):
+            s.add(
+                db.User(
+                    id=update.effective_chat.id,
+                    full_name=update.effective_chat.full_name,
+                    nick_name=update.effective_chat.username,
+                )
+            )
+            s.commit()
+    update.message.reply_markdown_v2(
+        text=f"Hello, {update.effective_user.mention_markdown_v2()}\\!\n"
+        "Nice to meet you\\! My name is *Nuiko Hayami*\\. ❄️\n"
+        "Please, see \\/help to learn more about me\\!",
+    )
 
 
 ################################################################################
@@ -306,6 +333,10 @@ def main() -> None:
             "connect_timeout": 7,
         },
     )
+    dispatcher = updater.dispatcher
+
+    # start the bot
+    dispatcher.add_handler(CommandHandler("start", command_start))
 
     # start bot
     updater.start_polling()
