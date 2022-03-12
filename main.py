@@ -198,50 +198,26 @@ def migrate_db():
         messages = json.loads((path / "result.json").read_bytes())["messages"]
         with Session(engine) as s:
             for message in messages:
-                if not message.get("forwarded_from", None):
-                    for artwork in check_message(message):
-                        s.add(
-                            ArtWork(
-                                aid=artwork.id,
-                                type=artwork.type,
-                                post_id=message["id"],
-                                post_date=parse(message["date"]),
-                                channel=channel,
-                            )
+                data = {
+                    "post_id": message["id"],
+                    "post_date": parse(message["date"]),
+                    "channel": channel,
+                }
+                for artwork in check_message(message):
+                    data.update({"aid": artwork.id, "type": artwork.type})
+                    if f := message.get("forwarded_from", None):
+                        data.update(
+                            {
+                                "is_forwarded": True,
+                                "is_original": False,
+                                "forwarded_channel": s.query(Channel)
+                                .filter(Channel.name == f)
+                                .first(),
+                            }
                         )
+                    s.add(ArtWork(**data))
             channel.last_post = messages[-1]["id"]
             s.commit()
-
-    for path in dirs:
-        channel = chans[path.name]
-        messages = json.loads((path / "result.json").read_bytes())["messages"]
-        with Session(engine) as s:
-            for message in messages:
-                if message.get("forwarded_from", None):
-                    for artwork in check_message(message):
-                        q = (
-                            s.query(ArtWork)
-                            .where(ArtWork.aid == artwork.id)
-                            .where(ArtWork.type == artwork.type)
-                        )
-                        if q.count():
-                            if q.where(ArtWork.forwarded == True).count():
-                                continue
-                            else:
-                                forwarded[path.name].append(message)
-                        else:
-                            s.add(
-                                ArtWork(
-                                    aid=artwork.id,
-                                    type=artwork.type,
-                                    post_id=message["id"],
-                                    post_date=parse(message["date"]),
-                                    channel=channel,
-                                    forwarded=True,
-                                )
-                            )
-            s.commit()
-        Path(src / "forwarded.json").write_text(json.dumps(forwarded, indent=4))
 
 
 def main():

@@ -1,8 +1,8 @@
 """Create tables User, Channel, ArtWork
 
-Revision ID: 02719e0fdc18
+Revision ID: 081703fc89bd
 Revises: 
-Create Date: 2022-03-10 08:12:59.952147
+Create Date: 2022-03-12 07:10:01.531906
 
 """
 from alembic import op
@@ -10,7 +10,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision = '02719e0fdc18'
+revision = '081703fc89bd'
 down_revision = None
 branch_labels = None
 depends_on = None
@@ -37,6 +37,7 @@ def upgrade():
     sa.Column('is_admin', sa.Boolean(), nullable=False),
     sa.Column('admin_id', sa.BigInteger(), nullable=True),
     sa.Column('last_post', sa.BigInteger(), nullable=True),
+    sa.Column('is_deleted', sa.Boolean(), nullable=False),
     sa.ForeignKeyConstraint(['admin_id'], ['user.id'], ),
     sa.PrimaryKeyConstraint('id')
     )
@@ -44,12 +45,15 @@ def upgrade():
     sa.Column('id', sa.BigInteger().with_variant(sa.Integer(), 'sqlite'), nullable=False),
     sa.Column('type', sa.Integer(), nullable=False),
     sa.Column('aid', sa.BigInteger(), nullable=False),
-    sa.Column('channel_id', sa.BigInteger(), nullable=True),
+    sa.Column('channel_id', sa.BigInteger(), nullable=False),
     sa.Column('post_id', sa.BigInteger(), nullable=False),
     sa.Column('post_date', sa.DateTime(timezone=True), nullable=True),
-    sa.Column('forwarded', sa.Boolean(), nullable=False),
+    sa.Column('is_original', sa.Boolean(), nullable=False),
+    sa.Column('is_forwarded', sa.Boolean(), nullable=False),
+    sa.Column('forwarded_channel_id', sa.BigInteger(), nullable=True),
     sa.Column('files', sa.JSON(), nullable=True),
     sa.ForeignKeyConstraint(['channel_id'], ['channel.id'], ),
+    sa.ForeignKeyConstraint(['forwarded_channel_id'], ['channel.id'], ),
     sa.PrimaryKeyConstraint('id'),
     sa.UniqueConstraint('channel_id', 'post_id', name='uix_post')
     )
