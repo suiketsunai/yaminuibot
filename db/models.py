@@ -80,6 +80,8 @@ class Channel(Base):
         back_populates="forwarded_channel",
         foreign_keys="ArtWork.forwarded_channel_id",
     )
+    # if channel was deleted
+    is_deleted = Column(Boolean, default=False, nullable=False)
 
 
 class User(Base):
@@ -125,6 +127,8 @@ class User(Base):
     last_info = Column(JSON)
     # in case if user should be banned
     is_banned = Column(Boolean, default=False, nullable=False)
+    # if user was deleted
+    is_deleted = Column(Boolean, default=False, nullable=False)
 
 
 class ArtWork(Base):
