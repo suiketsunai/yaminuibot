@@ -69,7 +69,17 @@ class Channel(Base):
     # last post number
     last_post = Column(BigInteger)
     # RL: 1-M Channnel with artworks
-    artworks = relationship("ArtWork", back_populates="channel")
+    artworks = relationship(
+        "ArtWork",
+        back_populates="channel",
+        foreign_keys="ArtWork.channel_id",
+    )
+    # RL: 1-M Channnel reposts
+    reposts = relationship(
+        "ArtWork",
+        back_populates="forwarded_channel",
+        foreign_keys="ArtWork.forwarded_channel_id",
+    )
 
 
 class User(Base):
@@ -132,10 +142,14 @@ class ArtWork(Base):
 
     # artwork id
     aid = Column(BigInteger, nullable=False)
+    # FK: channel that post is from
+    channel_id = Column(BigInteger, ForeignKey("channel.id"), nullable=False)
     # RL: M-1 Artwork in Channels
-    channel = relationship("Channel", back_populates="artworks")
-    # FK: admin user
-    channel_id = Column(BigInteger, ForeignKey("channel.id"))
+    channel = relationship(
+        "Channel",
+        back_populates="artworks",
+        foreign_keys=[channel_id],
+    )
     # channel post id
     post_id = Column(BigInteger, nullable=False)
     # dote when artwork posted
@@ -143,7 +157,15 @@ class ArtWork(Base):
     # is this post original or not?
     is_original = Column(Boolean, default=True, nullable=False)
     # if forwarded and not in db
-    forwarded = Column(Boolean, default=False, nullable=False)
+    is_forwarded = Column(Boolean, default=False, nullable=False)
+    # FK: channel that post is forwarded from
+    forwarded_channel_id = Column(BigInteger, ForeignKey("channel.id"))
+    # RL: M-1 Forwarded Artworks from Channel
+    forwarded_channel = relationship(
+        "Channel",
+        back_populates="reposts",
+        foreign_keys=[forwarded_channel_id],
+    )
     # files
     files = Column(JSON)
     # files count
