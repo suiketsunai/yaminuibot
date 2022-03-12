@@ -92,6 +92,7 @@ src = {
 
 
 def setup_logging():
+    """Set up logger"""
     # set basic config to logger
     logging.basicConfig(
         format=config["log"]["form"],
@@ -124,14 +125,28 @@ def setup_logging():
         log.info("Logging to file disabled.")
 
 
-def row2dict(row):
+def row2dict(row) -> dict:
+    """Convert table row to dictionary
+
+    Args:
+        row (_type_): a row of table
+
+    Returns:
+        dict: row as dictionary
+    """
     return {
         column.name: getattr(row, column.name)
         for column in row.__table__.columns
     }
 
 
-def dumper(table, filename):
+def dumper(table, filename: str) -> None:
+    """Helper function for dumping Tables into files
+
+    Args:
+        table (_type_): Table name for exporting
+        filename (str): name for file to dump Table in
+    """
     src = Path(".src")
     with Session(engine) as s:
         (src / filename).with_suffix(".json").write_text(
@@ -143,20 +158,21 @@ def dumper(table, filename):
         )
 
 
-def dump_db():
+def dump_db() -> None:
+    """Dump database as it is"""
     dumper(User, "users")
     dumper(Channel, "channels")
     dumper(ArtWork, "artworks")
 
 
-def formatter(query: str):
-    """Exctracts and formates links in text
+def formatter(query: str) -> list[Link]:
+    """Exctract and format links in text
 
     Args:
         query (str): text
 
     Returns:
-        list: list of Links
+        list[Link]: list of Links
     """
     response = []
     for re_key, re_type in src.items():
@@ -169,7 +185,15 @@ def formatter(query: str):
     return response
 
 
-def check_message(message: dict):
+def check_message(message: dict) -> list[Link]:
+    """Check if message has appropriate link in it
+
+    Args:
+        message (dict): Telegram channel message from exported json
+
+    Returns:
+        list[Link]: list of Links
+    """
     if message["type"] == "message":
         for item in message["text"]:
             if isinstance(item, dict) and item.get("type") == "link":
@@ -177,7 +201,8 @@ def check_message(message: dict):
     return []
 
 
-def migrate_db():
+def migrate_db() -> None:
+    """Read exported jsons and insert data in database"""
     src = Path(".src")
     users = json.loads((src / "users.json").read_bytes())
     channels = json.loads((src / "channels.json").read_bytes())
@@ -241,7 +266,7 @@ def migrate_db():
 
 
 def main() -> None:
-    """Set up and run it"""
+    """Set up and run the bot"""
     # setup logging
     setup_logging()
 
