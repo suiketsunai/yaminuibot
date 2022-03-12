@@ -1,8 +1,8 @@
 """Create tables User, Channel, ArtWork
 
-Revision ID: 081703fc89bd
+Revision ID: ccf52592b2c6
 Revises: 
-Create Date: 2022-03-12 07:10:01.531906
+Create Date: 2022-03-12 08:25:07.811025
 
 """
 from alembic import op
@@ -10,7 +10,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision = '081703fc89bd'
+revision = 'ccf52592b2c6'
 down_revision = None
 branch_labels = None
 depends_on = None
@@ -28,6 +28,7 @@ def upgrade():
     sa.Column('pixiv_style', sa.Integer(), nullable=False),
     sa.Column('last_info', sa.JSON(), nullable=True),
     sa.Column('is_banned', sa.Boolean(), nullable=False),
+    sa.Column('is_deleted', sa.Boolean(), nullable=False),
     sa.PrimaryKeyConstraint('id')
     )
     op.create_table('channel',
