@@ -338,6 +338,11 @@ def command_start(update: Update, _) -> None:
     )
 
 
+def command_help(update: Update, _) -> None:
+    """Send a message when the command /help is issued."""
+    reply(update, Path(os.environ["HELP_FILE"]).read_text(encoding="utf-8"))
+
+
 ################################################################################
 # main body
 ################################################################################
@@ -363,6 +368,9 @@ def main() -> None:
 
     # start the bot
     dispatcher.add_handler(CommandHandler("start", command_start))
+
+    # get help
+    dispatcher.add_handler(CommandHandler("help", command_help))
 
     # start bot
     updater.start_polling()

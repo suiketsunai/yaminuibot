@@ -1,0 +1,26 @@
+\[ `HELP v\.1\.0` \]
+
+/help — show this very message\.
+
+/channel — enter *setting channel mode*\. Before entering this mode you __*have to*__ add this bot to *your channel*\. Also, you __*have to*__ let the bot send new posts\.
+
+Then, in this mode you should forward a message from __*your channel*__ \(*do not forward other channels' posts\!*\) to this chat\. This way bot *will remember* your channel\.
+
+/redir \(_default_\: *on*\) — toggle forwarding messages to your channel\.
+
+/media \(_default_\: *off*\) — toggle replying to the post with twitter video/gif, if there's one\.
+
+/save — the bot will send you the media from the last link you posted, _*except for forwarded messages*_`\*`\.
+Maybe I will fix it later, who knows\.
+
+`\*`_*Pro tip*_\: For now, use /redir command to turn off forwarding, *if it's pixiv, also choose illustrations to save*, and then send /save command\.
+
+/style — cycle pixiv post styles\. Only *2 styles* are available right now\.
+
+/cancel — cancel current operation\. *Use it in cases when you want to shut this bot up*\.
+
+_*Any text message*_ — bot will ignore it, unless there's a twitter or pixiv link in it, that could be parsed\.
+
+For now, only *the first one* found will be parsed\.
+
+In any case, *please, don't bully Yaminui\-chan*\! 💫 \~
