@@ -140,6 +140,8 @@ class ArtWork(Base):
     post_id = Column(BigInteger, nullable=False)
     # dote when artwork posted
     post_date = Column(DateTime(timezone=True))
+    # is this post original or not?
+    is_original = Column(Boolean, default=True, nullable=False)
     # if forwarded and not in db
     forwarded = Column(Boolean, default=False, nullable=False)
     # files
