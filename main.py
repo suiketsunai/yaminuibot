@@ -178,7 +178,7 @@ def migrate_db():
     src = Path(".src")
     users = json.loads((src / "users.json").read_bytes())
     channels = json.loads((src / "channels.json").read_bytes())
-
+    # migrate all users and channels
     with Session(engine) as s:
         for user in users:
             s.add(User(**user))
@@ -187,12 +187,12 @@ def migrate_db():
         for channel in channels:
             s.add(Channel(**channel))
         s.commit()
-
+    # get directories
     dirs = [cid for cid in src.iterdir() if cid.is_dir()]
     with Session(engine) as s:
         chans = {str(channel.cid): channel for channel in s.query(Channel)}
         forwarded = {str(channel.cid): [] for channel in s.query(Channel)}
-
+    # migrate all artworks
     for path in dirs:
         channel = chans[path.name]
         messages = json.loads((path / "result.json").read_bytes())["messages"]
@@ -218,6 +218,23 @@ def migrate_db():
                     s.add(ArtWork(**data))
             channel.last_post = messages[-1]["id"]
             s.commit()
+    # find all first-posted artworks
+    with Session(engine) as s:
+        artl, artr = aliased(ArtWork), aliased(ArtWork)
+        q = (
+            s.query(artr)
+            .join(
+                artl,
+                (artl.aid == artr.aid)
+                & (artl.type == artr.type)
+                & (artl.id != artr.id)
+                & (artl.post_date < artr.post_date),
+            )
+            .order_by(artl.type, artl.aid, artl.post_date)
+        )
+        for post in q.all():
+            post.is_original = False
+        s.commit()
 
 
 def main():
