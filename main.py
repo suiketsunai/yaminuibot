@@ -288,6 +288,17 @@ def reply(update: Update, text: str, **kwargs):
     )
 
 
+# quick logging
+def notify(update: Update, *, command: str = None):
+    if command:
+        log.info(
+            "%s command was called by %s [%s].",
+            command,
+            update.effective_user.full_name,
+            update.effective_user.id,
+        )
+
+
 ################################################################################
 # telegram bot commands
 ################################################################################
@@ -295,6 +306,7 @@ def reply(update: Update, text: str, **kwargs):
 
 def command_start(update: Update, _) -> None:
     """Start the bot"""
+    notify(update, command="/start")
     with Session(engine) as s:
         if not s.get(db.User, update.effective_chat.id):
             s.add(
