@@ -18,7 +18,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, aliased
 
 # database models
-from db.models import User, Channel, ArtWork
+import db.models as db
 
 # parsing datetime
 from dateutil.parser import parse
@@ -56,10 +56,6 @@ Link = namedtuple("Link", ["type", "link", "id"])
 # links
 ################################################################################
 
-# link types
-TWITTER = 0
-PIXIV = 1
-
 # link dictionary
 src = {
     "twitter": {
@@ -73,7 +69,7 @@ src = {
             (?P<id>\d+)
         """,
         "link": "twitter.com/{author}/status/{id}",
-        "type": TWITTER,
+        "type": db.TWITTER,
     },
     "pixiv": {
         "re": r"""(?x)
@@ -86,7 +82,7 @@ src = {
             (?P<id>\d+)
         """,
         "link": "www.pixiv.net/artworks/{id}",
-        "type": PIXIV,
+        "type": db.PIXIV,
     },
 }
 
@@ -160,9 +156,9 @@ def dumper(table, filename: str) -> None:
 
 def dump_db() -> None:
     """Dump database as it is"""
-    dumper(User, "users")
-    dumper(Channel, "channels")
-    dumper(ArtWork, "artworks")
+    dumper(db.User, "users")
+    dumper(db.Channel, "channels")
+    dumper(db.ArtWork, "artworks")
 
 
 def formatter(query: str) -> list[Link]:
@@ -209,17 +205,16 @@ def migrate_db() -> None:
     # migrate all users and channels
     with Session(engine) as s:
         for user in users:
-            s.add(User(**user))
+            s.add(db.User(**user))
         s.commit()
 
         for channel in channels:
-            s.add(Channel(**channel))
+            s.add(db.Channel(**channel))
         s.commit()
     # get directories
     dirs = [cid for cid in src.iterdir() if cid.is_dir()]
     with Session(engine) as s:
-        chans = {str(channel.cid): channel for channel in s.query(Channel)}
-        forwarded = {str(channel.cid): [] for channel in s.query(Channel)}
+        chans = {str(channel.cid): channel for channel in s.query(db.Channel)}
     # migrate all artworks
     for path in dirs:
         channel = chans[path.name]
@@ -238,17 +233,17 @@ def migrate_db() -> None:
                             {
                                 "is_forwarded": True,
                                 "is_original": False,
-                                "forwarded_channel": s.query(Channel)
-                                .filter(Channel.name == f)
+                                "forwarded_channel": s.query(db.Channel)
+                                .filter(db.Channel.name == f)
                                 .first(),
                             }
                         )
-                    s.add(ArtWork(**data))
+                    s.add(db.ArtWork(**data))
             channel.last_post = messages[-1]["id"]
             s.commit()
     # find all first-posted artworks
     with Session(engine) as s:
-        artl, artr = aliased(ArtWork), aliased(ArtWork)
+        artl, artr = aliased(db.ArtWork), aliased(db.ArtWork)
         q = (
             s.query(artr)
             .join(
