@@ -190,11 +190,12 @@ def check_message(message: dict) -> list[Link]:
     Returns:
         list[Link]: list of Links
     """
+    result = []
     if message["type"] == "message":
         for item in message["text"]:
             if isinstance(item, dict) and item.get("type") == "link":
-                return formatter(item["text"])
-    return []
+                result += formatter(item["text"])
+    return result
 
 
 def migrate_db() -> None:
