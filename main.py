@@ -22,7 +22,7 @@ from sqlalchemy.orm import Session, aliased
 from dateutil.parser import parse
 
 # telegram core bot api
-from telegram import Update
+from telegram import Message, Update
 
 # telegram core bot api extension
 from telegram.ext import Updater, CommandHandler
@@ -279,8 +279,17 @@ def migrate_db() -> None:
 # telegram helper function
 ################################################################################
 
-# quick reply
-def reply(update: Update, text: str, **kwargs):
+
+def reply(update: Update, text: str, **kwargs) -> Message:
+    """Reply to current message
+
+    Args:
+        update (Update): current update
+        text (str): text to send in markdown v2
+
+    Returns:
+        Message: Telegram Message
+    """
     return update.message.reply_markdown_v2(
         reply_to_message_id=update.message.message_id,
         text=text,
@@ -288,8 +297,13 @@ def reply(update: Update, text: str, **kwargs):
     )
 
 
-# quick logging
-def notify(update: Update, *, command: str = None):
+def notify(update: Update, *, command: str = None) -> None:
+    """Log that something hapened
+
+    Args:
+        update (Update): current update
+        command (str, optional): called command. Defaults to None.
+    """
     if command:
         log.info(
             "%s command was called by %s [%s].",
