@@ -23,6 +23,9 @@ from db.models import User, Channel, ArtWork
 # parsing datetime
 from dateutil.parser import parse
 
+# telegram core bot api extension
+from telegram.ext import Updater
+
 # current timestamp & this file directory
 date_run = datetime.now()
 file_dir = Path(__file__).parent
@@ -237,11 +240,28 @@ def migrate_db():
         s.commit()
 
 
-def main():
+def main() -> None:
+    """Set up and run it"""
+    # setup logging
     setup_logging()
 
     # migrate db if needed
     migrate_db()
+
+    # create updater & dispatcher
+    updater = Updater(
+        os.environ["TOKEN"],
+        request_kwargs={
+            "read_timeout": 6,
+            "connect_timeout": 7,
+        },
+    )
+
+    # start bot
+    updater.start_polling()
+
+    # stop bot
+    updater.idle()
 
 
 if __name__ == "__main__":

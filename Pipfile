@@ -11,6 +11,7 @@ tomli = "*"
 sqlalchemy-repr = "*"
 psycopg2 = "*"
 python-dateutil = "*"
+python-telegram-bot = "*"
 
 [dev-packages]
 black = "*"
