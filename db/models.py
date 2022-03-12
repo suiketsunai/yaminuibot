@@ -1,3 +1,4 @@
+"""Database"""
 from sqlalchemy import (
     UniqueConstraint,
     ForeignKey,
@@ -37,6 +38,7 @@ Base = declarative_base(cls=RepresentableBase)
 
 
 class Channel(Base):
+    """Table for storing telegram channel data"""
     __tablename__ = "channel"
     # channel public id
     id = Column(BigInteger, primary_key=True, autoincrement=False)
@@ -85,6 +87,7 @@ class Channel(Base):
 
 
 class User(Base):
+    """Table for storing telegram user data"""
     __tablename__ = "user"
     # telegram account id
     id = Column(BigInteger, primary_key=True, autoincrement=False)
@@ -132,6 +135,7 @@ class User(Base):
 
 
 class ArtWork(Base):
+    """Table for storing channel post with artwork data"""
     __tablename__ = "artwork"
     # artwork record id
     id = Column(BigInteger().with_variant(Integer, "sqlite"), primary_key=True)

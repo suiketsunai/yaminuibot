@@ -1,3 +1,4 @@
+"""Main module"""
 import os
 import re
 import json
@@ -17,14 +18,17 @@ import tomli
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, aliased
 
-# database models
-import db.models as db
-
 # parsing datetime
 from dateutil.parser import parse
 
+# telegram core bot api
+from telegram import Update
+
 # telegram core bot api extension
-from telegram.ext import Updater
+from telegram.ext import Updater, CommandHandler
+
+# database models
+import db.models as db
 
 # current timestamp & this file directory
 date_run = datetime.now()
@@ -66,15 +70,15 @@ def setup_logging():
             try:
                 log.info("Creating log directory...")
                 log_dir.mkdir()
-                log.info(f"Created log directory: {log_dir.resolve()}.")
+                log.info("Created log directory: '%s'.", log_dir.resolve())
             except Exception as ex:
-                log.error(f"Exception occured: {ex}")
+                log.error("Exception occured: %s", ex)
                 log.info("Can't execute program.")
                 quit()
         log_date = date_run.strftime(config["log"]["file"]["date"])
         log_name = f'{config["log"]["file"]["pref"]}{log_date}.log'
         log_file = log_dir / log_name
-        log.info(f"Logging to file: {log_name}")
+        log.info("Logging to file: '%s'.", log_name)
         # add file handler
         fh = logging.FileHandler(log_file, encoding="utf-8")
         fh.setFormatter(logging.Formatter(config["log"]["file"]["form"]))
@@ -96,7 +100,7 @@ Link = namedtuple("Link", ["type", "link", "id"])
 ################################################################################
 
 # link dictionary
-src = {
+link_dict = {
     "twitter": {
         "re": r"""(?x)
             (?:
@@ -181,11 +185,11 @@ def formatter(query: str) -> list[Link]:
         list[Link]: list of Links
     """
     response = []
-    for re_key, re_type in src.items():
+    for re_key, re_type in link_dict.items():
         for link in re.finditer(re_type["re"], query):
             # dictionary keys = format args
             _link = "https://" + re_type["link"].format(**link.groupdict())
-            log.info(f"Inline: Received link {re_key}: {_link}.")
+            log.info("Inline: Received %s link: '%s'.", re_key, _link)
             # add to response list
             response.append(Link(re_type["type"], _link, int(link.group("id"))))
     return response
