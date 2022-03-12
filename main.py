@@ -34,9 +34,6 @@ file_dir = Path(__file__).parent
 load_dotenv()
 config = tomli.load(Path(os.environ["PATH_SETTINGS"]).open("rb"))
 
-# get logger
-log = logging.getLogger("yaminuichan")
-
 # session settings
 engine = create_engine(
     os.environ["DATABASE_URI"],
@@ -44,6 +41,48 @@ engine = create_engine(
     echo_pool="debug",
     future=True,
 )
+
+################################################################################
+# logger
+################################################################################
+
+# get logger
+log = logging.getLogger("yaminuichan")
+
+
+def setup_logging():
+    """Set up logger"""
+    # set basic config to logger
+    logging.basicConfig(
+        format=config["log"]["form"],
+        level=logging.getLevelName(config["log"]["level"]),
+    )
+    # setup logging to file
+    if config["log"]["file"]["enable"]:
+        log.info("Logging to file enabled.")
+        log_dir = file_dir / config["log"]["file"]["path"]
+        if not log_dir.is_dir():
+            log.warning("Log directory doesn't exist.")
+            try:
+                log.info("Creating log directory...")
+                log_dir.mkdir()
+                log.info(f"Created log directory: {log_dir.resolve()}.")
+            except Exception as ex:
+                log.error(f"Exception occured: {ex}")
+                log.info("Can't execute program.")
+                quit()
+        log_date = date_run.strftime(config["log"]["file"]["date"])
+        log_name = f'{config["log"]["file"]["pref"]}{log_date}.log'
+        log_file = log_dir / log_name
+        log.info(f"Logging to file: {log_name}")
+        # add file handler
+        fh = logging.FileHandler(log_file, encoding="utf-8")
+        fh.setFormatter(logging.Formatter(config["log"]["file"]["form"]))
+        fh.setLevel(logging.getLevelName(config["log"]["file"]["level"]))
+        logging.getLogger().addHandler(fh)
+    else:
+        log.info("Logging to file disabled.")
+
 
 ################################################################################
 # named tuples
@@ -87,38 +126,9 @@ src = {
 }
 
 
-def setup_logging():
-    """Set up logger"""
-    # set basic config to logger
-    logging.basicConfig(
-        format=config["log"]["form"],
-        level=logging.getLevelName(config["log"]["level"]),
-    )
-    # setup logging to file
-    if config["log"]["file"]["enable"]:
-        log.info("Logging to file enabled.")
-        log_dir = file_dir / config["log"]["file"]["path"]
-        if not log_dir.is_dir():
-            log.warning("Log directory doesn't exist.")
-            try:
-                log.info("Creating log directory...")
-                log_dir.mkdir()
-                log.info(f"Created log directory: {log_dir.resolve()}.")
-            except Exception as ex:
-                log.error(f"Exception occured: {ex}")
-                log.info("Can't execute program.")
-                quit()
-        log_date = date_run.strftime(config["log"]["file"]["date"])
-        log_name = f'{config["log"]["file"]["pref"]}{log_date}.log'
-        log_file = log_dir / log_name
-        log.info(f"Logging to file: {log_name}")
-        # add file handler
-        fh = logging.FileHandler(log_file, encoding="utf-8")
-        fh.setFormatter(logging.Formatter(config["log"]["file"]["form"]))
-        fh.setLevel(logging.getLevelName(config["log"]["file"]["level"]))
-        logging.getLogger().addHandler(fh)
-    else:
-        log.info("Logging to file disabled.")
+################################################################################
+# file operations functions
+################################################################################
 
 
 def row2dict(row) -> dict:
@@ -259,6 +269,21 @@ def migrate_db() -> None:
         for post in q.all():
             post.is_original = False
         s.commit()
+
+
+################################################################################
+# telegram helper function
+################################################################################
+
+
+################################################################################
+# telegram bot commands
+################################################################################
+
+
+################################################################################
+# main body
+################################################################################
 
 
 def main() -> None:
