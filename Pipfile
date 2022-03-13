@@ -12,6 +12,8 @@ sqlalchemy-repr = "*"
 psycopg2 = "*"
 python-dateutil = "*"
 python-telegram-bot = "*"
+tweepy = "*"
+requests = "*"
 
 [dev-packages]
 black = "*"
