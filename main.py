@@ -6,7 +6,7 @@ import logging
 
 from pathlib import Path
 from datetime import datetime
-from itertools import cycle, islice, dropwhile
+from functools import partial
 from collections import namedtuple
 
 # working with env
@@ -37,6 +37,9 @@ from telegram.ext import (
 
 # telegram errors
 from telegram.error import Unauthorized
+
+# escaping special markdown characters
+from telegram.utils.helpers import escape_markdown
 
 # database models
 import db.models as db
@@ -300,6 +303,9 @@ def migrate_db() -> None:
 # telegram helper function
 ################################################################################
 
+# escaping markdown v2
+esc = partial(escape_markdown, version=2)
+
 
 def reply(update: Update, text: str, **kwargs) -> Message:
     """Reply to current message
@@ -537,6 +543,7 @@ def command_media(update: Update, _) -> None:
 
 def command_style(update: Update, _) -> None:
     """Change pixiv style."""
+    notify(update, command="/style")
     with Session(engine) as s:
         u = s.get(db.User, update.effective_chat.id)
         old_style = u.pixiv_style
