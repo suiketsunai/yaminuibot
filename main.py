@@ -315,6 +315,23 @@ def reply(update: Update, text: str, **kwargs) -> Message:
     )
 
 
+def error(update: Update, text: str, **kwargs) -> Message:
+    """Reply to current message with error
+
+    Args:
+        update (Update): current update
+        text (str): text to send in markdown v2
+
+    Returns:
+        Message: Telegram Message
+    """
+    return update.message.reply_markdown_v2(
+        reply_to_message_id=update.message.message_id,
+        text="\\[`ERROR`\\] " + text,
+        **kwargs,
+    )
+
+
 def notify(update: Update, *, command: str = None) -> None:
     """Log that something hapened
 
@@ -349,8 +366,74 @@ def toggler(update: Update, attr: str) -> bool:
         return not state
 
 
-def channel_check(update: Update, context: CallbackContext):
-    pass
+def channel_check(update: Update, context: CallbackContext) -> int:
+    """Checks if channel is a valid choice"""
+    mes = update.message
+    if getattr(mes, "forward_from_chat"):
+        channel = mes.forward_from_chat
+        if channel.type == "supergroup":
+            error(update, "This message is from a supergroup\\.")
+        else:
+            with Session(engine) as s:
+                if (c := s.get(db.Channel, channel.id)) and c.admin:
+                    error(update, "This channel is *already* owned\\.")
+                else:
+                    reply(
+                        update,
+                        "*Seems fine\\!* ✨\n"
+                        "Checking for *admin rights*\\.\\.\\.",
+                    )
+                    if (
+                        (
+                            member_bot := context.bot.get_chat_member(
+                                channel.id,
+                                int(os.environ["TOKEN"].split(":")[0]),
+                            )
+                        )
+                        and getattr(member_bot, "can_post_messages")
+                        and (
+                            member_user := context.bot.get_chat_member(
+                                channel.id,
+                                update.effective_chat.id,
+                            )
+                        )
+                        and member_user.status in ["creator", "administrator"]
+                    ):
+                        # get current user
+                        u = s.get(db.User, update.effective_chat.id)
+                        # remove old channel
+                        if c:
+                            # channel already exist
+                            u.channel = c
+                        else:
+                            # channel doesn't exist
+                            u.channel = None
+                            # create new channel
+                            db.Channel(
+                                id=channel.id,
+                                name=channel.title,
+                                is_admin=True,
+                                admin=u,
+                            )
+                        # commit changes to database
+                        s.commit()
+                        reply(
+                            update,
+                            "*Done\\!* 🎉\n"
+                            "*Your channel* is added to the database\\!",
+                        )
+                        del context.user_data[CHANNEL]
+                        return ConversationHandler.END
+                    else:
+                        error(
+                            update,
+                            "Either *the bot* or *you* "
+                            "are not an admin of this channel\\!",
+                        )
+    else:
+        error(update, "Please, *forward* a message from *your channel*\\.")
+
+    return CHANNEL
 
 
 ################################################################################
