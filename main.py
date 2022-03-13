@@ -26,7 +26,14 @@ from dateutil.parser import parse
 from telegram import Message, Update
 
 # telegram core bot api extension
-from telegram.ext import Updater, CommandHandler
+from telegram.ext import (
+    Updater,
+    CallbackContext,
+    MessageHandler,
+    CommandHandler,
+    ConversationHandler,
+    Filters,
+)
 
 # database models
 import db.models as db
@@ -135,6 +142,11 @@ _switch = {
     False: "disabled",
 }
 
+# states
+states = (
+    CHANNEL,
+    TEST,
+) = map(chr, range(2))
 
 ################################################################################
 # file operations functions
@@ -337,6 +349,10 @@ def toggler(update: Update, attr: str) -> bool:
         return not state
 
 
+def channel_check(update: Update, context: CallbackContext):
+    pass
+
+
 ################################################################################
 # telegram bot commands
 ################################################################################
@@ -365,6 +381,38 @@ def command_start(update: Update, _) -> None:
 def command_help(update: Update, _) -> None:
     """Send a message when the command /help is issued."""
     reply(update, Path(os.environ["HELP_FILE"]).read_text(encoding="utf-8"))
+
+
+def command_channel(update: Update, context: CallbackContext) -> int:
+    """Starts process of adding user's channel to their profile"""
+    notify(update, command="/channel")
+    if context.user_data.get(CHANNEL, None):
+        reply(
+            update,
+            "*Ehm\\.\\.\\.*\n"
+            "Please, forward a post from *your channel* already\\.",
+        )
+        return CHANNEL
+    context.user_data[CHANNEL] = True
+    reply(
+        update,
+        "*Sure\\!* 💫\n"
+        "Please, add *this bot* to *your channel* as admin\\.\n"
+        "Then, forward a message from *your channel* to me\\.",
+    )
+    return CHANNEL
+
+
+def command_cancel(update: Update, context: CallbackContext) -> int:
+    """Cancels and ends the conversation"""
+    notify(update, command="/cancel")
+
+    if context.user_data.get(CHANNEL, None):
+        context.user_data[CHANNEL] = False
+        reply(update, "*Okay\\!* 👌\nYou can add *your channel* at any time\\.")
+        return ConversationHandler.END
+    else:
+        reply(update, "*Yeah, sure\\.* 👀\nCancel all you want\\.")
 
 
 def command_forward(update: Update, _) -> None:
@@ -452,6 +500,25 @@ def main() -> None:
 
     # cycle through pixiv styles
     dispatcher.add_handler(CommandHandler("style", command_style))
+
+    # add your channel
+    dispatcher.add_handler(
+        ConversationHandler(
+            entry_points=[
+                CommandHandler("channel", command_channel),
+                CommandHandler("cancel", command_cancel),
+            ],
+            states={
+                CHANNEL: [
+                    MessageHandler(~Filters.command, channel_check),
+                ]
+            },
+            fallbacks=[
+                CommandHandler("channel", command_channel),
+                CommandHandler("cancel", command_cancel),
+            ],
+        )
+    )
 
     # start bot
     updater.start_polling()
