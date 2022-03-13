@@ -48,6 +48,9 @@ from telegram.utils.helpers import escape_markdown
 # http requests
 import requests
 
+# twitter api
+import tweepy
+
 # database models
 import db.models as db
 
@@ -114,7 +117,20 @@ def setup_logging():
 ################################################################################
 
 Link = namedtuple("Link", ["type", "link", "id"])
-
+TwitterMedia = namedtuple(
+    "TwitterMedia",
+    [
+        "id",
+        "type",
+        "user_id",
+        "user",
+        "username",
+        "date",
+        "desc",
+        "links",
+        "thumbs",
+    ],
+)
 
 ################################################################################
 # hardcode
@@ -505,6 +521,114 @@ def get_file_size(link: str, session: requests.Session = None) -> int:
     if r.ok and (size := r.headers.get("Content-Length", None)):
         return int(size)
     return 0
+
+
+################################################################################
+# twitter
+################################################################################
+
+
+def get_twitter_media(tweet_id, media_type=None, source_url=None) -> list:
+    if media_type == "photo":
+        pat = r"""(?x)
+            (?:
+                (?:media\/)
+                (?P<id>[^\.\?]+)
+                (?:
+                    (?:\?.*format\=)|(?:\.)
+                )
+            )
+            (?P<format>\w+)
+        """
+        links = []
+        for url in source_url:
+            reg = re.search(pat, url)
+            links.append(link_dict["twitter"]["full"].format(**reg.groupdict()))
+        return [links, [link.replace("orig", "large") for link in links]]
+    else:
+        base = "https://tweetpik.com/twitter-downloader/"
+        api = f"https://tweetpik.com/api/tweets/{tweet_id}/video"
+        log.debug(f"Sending request to API: {api}...")
+        s = requests.session()
+        res = s.post(
+            url=api,
+            headers={
+                **fake_headers,
+                "Referer": base,
+            },
+        )
+        if res.status_code != 200:
+            log.warning("Service is unavailable.")
+            return None
+        log.debug("Received json: %s.", res.json())
+        var = res.json()["variants"]
+        return [
+            [var[-1 % len(var)]["url"]],
+            [var[-2 % len(var)]["url"]],
+        ]
+
+
+def get_twitter_links(tweet_id: int) -> TwitterMedia:
+    # start client
+    log.debug("Starting Twitter API client...")
+    client = tweepy.Client(os.environ["TWITTER_TOKEN"])
+    res = client.get_tweet(
+        id=tweet_id,
+        expansions=[
+            "attachments.media_keys",
+            "author_id",
+        ],
+        tweet_fields=[
+            "id",
+            "text",
+            "created_at",
+            "entities",
+        ],
+        user_fields=[
+            "id",
+            "name",
+            "username",
+        ],
+        media_fields=[
+            "type",
+            "width",
+            "height",
+            "preview_image_url",
+            "url",
+            "duration_ms",
+        ],
+    )
+    log.debug("Response: %s.", res)
+    error = res.errors
+    if error:
+        log.warning("%s: %s", error["title"], error["detail"])
+    else:
+        media = [media for media in res.includes["media"]]
+        user = res.includes["users"][0]
+        kind = media[0].type
+        if kind == "photo":
+            links = get_twitter_media(tweet_id, kind, [e.url for e in media])
+        else:
+            links = get_twitter_media(tweet_id, kind)
+        if not links[0]:
+            log.warning("Unexpected error occured: no links.")
+            return None
+        else:
+            text = res.data.text
+            for url in res.data.entities["urls"][:-1]:
+                text = text.replace(url["url"], url["expanded_url"])
+            text = text.replace(res.data.entities["urls"][-1]["url"], "")
+            return TwitterMedia(
+                tweet_id,
+                kind,
+                user.id,
+                user.name,
+                user.username,
+                res.data.created_at,
+                text.strip(),
+                links[0],
+                links[1],
+            )
 
 
 ################################################################################
