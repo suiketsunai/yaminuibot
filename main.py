@@ -473,6 +473,7 @@ def channel_check(update: Update, context: CallbackContext) -> int:
                                 db.Channel(
                                     id=channel.id,
                                     name=channel.title,
+                                    link=channel.username,
                                     is_admin=True,
                                     admin=u,
                                 )
