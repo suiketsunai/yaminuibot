@@ -356,7 +356,15 @@ def error(update: Update, text: str, **kwargs) -> Message:
     )
 
 
-def notify(update: Update, *, command: str = None) -> None:
+def forward(update: Update, channel: int) -> Message:
+    """Forward message to channel"""
+    notify(update, func="forward")
+    return update.message.forward(
+        chat_id=channel,
+    )
+
+
+def notify(update: Update, *, command: str = None, func: str = None) -> None:
     """Log that something hapened
 
     Args:
@@ -366,6 +374,13 @@ def notify(update: Update, *, command: str = None) -> None:
     if command:
         log.info(
             "%s command was called by %s [%s].",
+            command,
+            update.effective_user.full_name,
+            update.effective_user.id,
+        )
+    if func:
+        log.info(
+            "%s function was called by %s [%s].",
             command,
             update.effective_user.full_name,
             update.effective_user.id,
@@ -585,6 +600,7 @@ def command_media(update: Update, _) -> None:
 
 def command_style(update: Update, _) -> None:
     """Change pixiv style."""
+    not_busy.clear()
     notify(update, command="/style")
     with Session(engine) as s:
         u = s.get(db.User, update.effective_chat.id)
@@ -600,6 +616,7 @@ def command_style(update: Update, _) -> None:
         case 2:
             style = "Artwork \\| Author\nLink"
     reply(update, f"Style has been changed to\\:\n\n{style}\\.")
+    not_busy.set()
 
 
 ################################################################################
