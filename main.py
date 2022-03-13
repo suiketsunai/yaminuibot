@@ -41,6 +41,9 @@ from telegram.error import Unauthorized
 # escaping special markdown characters
 from telegram.utils.helpers import escape_markdown
 
+# http requests
+import requests
+
 # database models
 import db.models as db
 
@@ -153,6 +156,13 @@ states = (
     CHANNEL,
     TEST,
 ) = map(chr, range(2))
+
+# fake headers
+fake_headers = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:97.0) Gecko/20100101 Firefox/97.0",
+    "Accept": "*/*",
+    "Accept-Language": "en-US,en;q=0.5",
+}
 
 ################################################################################
 # file operations functions
@@ -450,6 +460,27 @@ def channel_check(update: Update, context: CallbackContext) -> int:
         error(update, "Please, *forward* a message from *your channel*\\.")
 
     return CHANNEL
+
+
+def get_file_size(link: str, session: requests.Session = None) -> int:
+    """Gets file size
+
+    Args:
+        link (str): downloadable file
+
+    Returns:
+        int: size of file
+    """
+    if not session:
+        session = requests
+    r = session.head(
+        url=link,
+        headers=fake_headers,
+        allow_redirects=True,
+    )
+    if r.ok and (size := r.headers.get("Content-Length", None)):
+        return int(size)
+    return 0
 
 
 ################################################################################
