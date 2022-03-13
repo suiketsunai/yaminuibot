@@ -35,6 +35,9 @@ from telegram.ext import (
     Filters,
 )
 
+# telegram errors
+from telegram.error import Unauthorized
+
 # database models
 import db.models as db
 
@@ -383,52 +386,59 @@ def channel_check(update: Update, context: CallbackContext) -> int:
                         "*Seems fine\\!* ✨\n"
                         "Checking for *admin rights*\\.\\.\\.",
                     )
-                    if (
-                        (
-                            member_bot := context.bot.get_chat_member(
-                                channel.id,
-                                int(os.environ["TOKEN"].split(":")[0]),
+                    try:
+                        if (
+                            (
+                                member_bot := context.bot.get_chat_member(
+                                    channel.id,
+                                    int(os.environ["TOKEN"].split(":")[0]),
+                                )
                             )
-                        )
-                        and getattr(member_bot, "can_post_messages")
-                        and (
-                            member_user := context.bot.get_chat_member(
-                                channel.id,
-                                update.effective_chat.id,
+                            and getattr(member_bot, "can_post_messages")
+                            and (
+                                member_user := context.bot.get_chat_member(
+                                    channel.id,
+                                    update.effective_chat.id,
+                                )
                             )
-                        )
-                        and member_user.status in ["creator", "administrator"]
-                    ):
-                        # get current user
-                        u = s.get(db.User, update.effective_chat.id)
-                        # remove old channel
-                        if c:
-                            # channel already exist
-                            u.channel = c
+                            and member_user.status
+                            in ["creator", "administrator"]
+                        ):
+                            # get current user
+                            u = s.get(db.User, update.effective_chat.id)
+                            # remove old channel
+                            if c:
+                                # channel already exist
+                                u.channel = c
+                            else:
+                                # channel doesn't exist
+                                u.channel = None
+                                # create new channel
+                                db.Channel(
+                                    id=channel.id,
+                                    name=channel.title,
+                                    is_admin=True,
+                                    admin=u,
+                                )
+                            # commit changes to database
+                            s.commit()
+                            reply(
+                                update,
+                                "*Done\\!* 🎉\n"
+                                "*Your channel* is added to the database\\!",
+                            )
+                            del context.user_data[CHANNEL]
+                            return ConversationHandler.END
                         else:
-                            # channel doesn't exist
-                            u.channel = None
-                            # create new channel
-                            db.Channel(
-                                id=channel.id,
-                                name=channel.title,
-                                is_admin=True,
-                                admin=u,
+                            error(
+                                update,
+                                "Either *the bot* or *you* "
+                                "are not an admin of this channel\\!",
                             )
-                        # commit changes to database
-                        s.commit()
-                        reply(
-                            update,
-                            "*Done\\!* 🎉\n"
-                            "*Your channel* is added to the database\\!",
-                        )
-                        del context.user_data[CHANNEL]
-                        return ConversationHandler.END
-                    else:
+                    except Unauthorized as ex:
                         error(
                             update,
-                            "Either *the bot* or *you* "
-                            "are not an admin of this channel\\!",
+                            "The bot *was kicked* from this channel\\!",
                         )
     else:
         error(update, "Please, *forward* a message from *your channel*\\.")
