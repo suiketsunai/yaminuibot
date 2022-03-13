@@ -6,6 +6,7 @@ import logging
 
 from pathlib import Path
 from datetime import datetime
+from itertools import cycle, islice, dropwhile
 from collections import namedtuple
 
 # working with env
@@ -393,6 +394,24 @@ def command_media(update: Update, _) -> None:
     )
 
 
+def command_style(update: Update, _) -> None:
+    """Change pixiv style."""
+    with Session(engine) as s:
+        u = s.get(db.User, update.effective_chat.id)
+        old_style = u.pixiv_style
+        new_style = db.pixiv[(old_style + 1) % len(db.pixiv)]
+        u.pixiv_style = new_style
+        s.commit()
+    match new_style:
+        case 0:
+            style = "\\[ `Image(s)` \\]\n\nLink"
+        case 1:
+            style = "\\[ `Image(s)` \\]\n\nArtwork \\| Author\nLink"
+        case 2:
+            style = "Artwork \\| Author\nLink"
+    reply(update, f"Style has been changed to\\:\n\n{style}\\.")
+
+
 ################################################################################
 # main body
 ################################################################################
@@ -404,7 +423,7 @@ def main() -> None:
     setup_logging()
 
     # migrate db if needed
-    migrate_db()
+    # migrate_db()
 
     # create updater & dispatcher
     updater = Updater(
@@ -430,6 +449,9 @@ def main() -> None:
 
     # toggle media media
     dispatcher.add_handler(CommandHandler("media", command_media))
+
+    # cycle through pixiv styles
+    dispatcher.add_handler(CommandHandler("style", command_style))
 
     # start bot
     updater.start_polling()
