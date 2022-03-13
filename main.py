@@ -20,6 +20,9 @@ import tomli
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, aliased
 
+# working with timezone
+from dateutil import tz
+
 # parsing datetime
 from dateutil.parser import parse
 
@@ -277,7 +280,7 @@ def migrate_db() -> None:
             for message in messages:
                 data = {
                     "post_id": message["id"],
-                    "post_date": parse(message["date"]),
+                    "post_date": parse(message["date"]).astimezone(tz.tzutc()),
                     "channel": channel,
                 }
                 for artwork in check_message(message):
