@@ -620,6 +620,42 @@ def command_style(update: Update, _) -> None:
 
 
 ################################################################################
+# telegram text message handlers
+################################################################################
+
+
+def forward_post(update: Update, _) -> None:
+    """Forward post if it's allowed"""
+    notify(update, command="forward_post")
+    if not (text := update.message.text):
+        text = update.message.caption
+    if links := formatter(text):
+        if len(links) > 1:
+            error(update, "Only *one link* is allowed for forwarding\\!")
+            return
+        link = links[0]
+        with Session(engine) as s:
+            not_busy.wait()
+            if u := s.get(db.User, update.effective_chat.id):
+                f, r, m = u.forward_mode, u.reply_mode, u.media_mode
+                if f and not (channel := u.channel.id):
+                    error(update, "You have no channel\\! Send /channel\\.")
+                    return
+            else:
+                error(update, "The bot doesn\\'t know you\\! Send /start\\.")
+                return
+        if f:
+            p = forward(update, channel)
+            if p:
+                if r:
+                    reply(update, "Forwarded\\!")
+                if m:
+                    pass
+        else:
+            pass
+
+
+################################################################################
 # main body
 ################################################################################
 
@@ -712,6 +748,14 @@ def main() -> None:
                 CommandHandler("channel", command_channel),
                 CommandHandler("cancel", command_cancel),
             ],
+            run_async=True,
+        )
+    )
+
+    dispatcher.add_handler(
+        MessageHandler(
+            Filters.forwarded & ~Filters.command,
+            forward_post,
             run_async=True,
         )
     )
