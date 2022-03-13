@@ -3,6 +3,7 @@ import os
 import re
 import json
 import logging
+import threading
 
 from pathlib import Path
 from datetime import datetime
@@ -113,7 +114,7 @@ Link = namedtuple("Link", ["type", "link", "id"])
 
 
 ################################################################################
-# links
+# hardcode
 ################################################################################
 
 # link dictionary
@@ -156,6 +157,10 @@ states = (
     CHANNEL,
     TEST,
 ) = map(chr, range(2))
+
+# events
+not_busy = threading.Event()
+not_busy.set()
 
 # fake headers
 fake_headers = {
@@ -223,7 +228,7 @@ def formatter(query: str) -> list[Link]:
         for link in re.finditer(re_type["re"], query):
             # dictionary keys = format args
             _link = "https://" + re_type["link"].format(**link.groupdict())
-            log.info("Inline: Received %s link: '%s'.", re_key, _link)
+            log.info("Received %s link: '%s'.", re_key, _link)
             # add to response list
             response.append(Link(re_type["type"], _link, int(link.group("id"))))
     return response
@@ -547,29 +552,35 @@ def command_cancel(update: Update, context: CallbackContext) -> int:
 
 def command_forward(update: Update, _) -> None:
     """Enables/Disables forwarding to channel"""
+    not_busy.clear()
     notify(update, command="/forward")
     reply(
         update,
         f"Forwarding mode is *{_switch[toggler(update, 'forward_mode')]}*\\.",
     )
+    not_busy.set()
 
 
 def command_reply(update: Update, _) -> None:
     """Enables/Disables replying to messages"""
+    not_busy.clear()
     notify(update, command="/reply")
     reply(
         update,
         f"Replying mode is *{_switch[toggler(update, 'reply_mode')]}*\\.",
     )
+    not_busy.set()
 
 
 def command_media(update: Update, _) -> None:
     """Enables/Disables adding video/gif to links"""
+    not_busy.clear()
     notify(update, command="/media")
     reply(
         update,
         f"Media mode is *{_switch[toggler(update, 'media_mode')]}*\\.",
     )
+    not_busy.set()
 
 
 def command_style(update: Update, _) -> None:
@@ -615,22 +626,58 @@ def main() -> None:
     dispatcher = updater.dispatcher
 
     # start the bot
-    dispatcher.add_handler(CommandHandler("start", command_start))
+    dispatcher.add_handler(
+        CommandHandler(
+            "start",
+            command_start,
+            run_async=True,
+        )
+    )
 
     # get help
-    dispatcher.add_handler(CommandHandler("help", command_help))
+    dispatcher.add_handler(
+        CommandHandler(
+            "help",
+            command_help,
+            run_async=True,
+        )
+    )
 
     # toggle forwarding mode
-    dispatcher.add_handler(CommandHandler("forward", command_forward))
+    dispatcher.add_handler(
+        CommandHandler(
+            "forward",
+            command_forward,
+            run_async=True,
+        )
+    )
 
     # toggle replying mode
-    dispatcher.add_handler(CommandHandler("reply", command_reply))
+    dispatcher.add_handler(
+        CommandHandler(
+            "reply",
+            command_reply,
+            run_async=True,
+        )
+    )
 
     # toggle media media
-    dispatcher.add_handler(CommandHandler("media", command_media))
+    dispatcher.add_handler(
+        CommandHandler(
+            "media",
+            command_media,
+            run_async=True,
+        )
+    )
 
     # cycle through pixiv styles
-    dispatcher.add_handler(CommandHandler("style", command_style))
+    dispatcher.add_handler(
+        CommandHandler(
+            "style",
+            command_style,
+            run_async=True,
+        )
+    )
 
     # add your channel
     dispatcher.add_handler(
@@ -648,6 +695,7 @@ def main() -> None:
                 CommandHandler("channel", command_channel),
                 CommandHandler("cancel", command_cancel),
             ],
+            run_async=True,
         )
     )
 
