@@ -129,6 +129,11 @@ link_dict = {
     },
 }
 
+_switch = {
+    True: "enabled",
+    False: "disabled",
+}
+
 
 ################################################################################
 # file operations functions
@@ -313,6 +318,24 @@ def notify(update: Update, *, command: str = None) -> None:
         )
 
 
+def toggler(update: Update, attr: str) -> bool:
+    """Toggle state between True and False
+
+    Args:
+        update (Update): current update
+        attr (str): attribute to change
+
+    Returns:
+        bool: new state
+    """
+    with Session(engine) as s:
+        u = s.get(db.User, update.effective_chat.id)
+        state = getattr(u, attr)
+        setattr(u, attr, not state)
+        s.commit()
+        return not state
+
+
 ################################################################################
 # telegram bot commands
 ################################################################################
@@ -343,6 +366,33 @@ def command_help(update: Update, _) -> None:
     reply(update, Path(os.environ["HELP_FILE"]).read_text(encoding="utf-8"))
 
 
+def command_forward(update: Update, _) -> None:
+    """Enables/Disables forwarding to channel"""
+    notify(update, command="/forward")
+    reply(
+        update,
+        f"Forwarding mode is *{_switch[toggler(update, 'forward_mode')]}*\\.",
+    )
+
+
+def command_reply(update: Update, _) -> None:
+    """Enables/Disables replying to messages"""
+    notify(update, command="/reply")
+    reply(
+        update,
+        f"Replying mode is *{_switch[toggler(update, 'reply_mode')]}*\\.",
+    )
+
+
+def command_media(update: Update, _) -> None:
+    """Enables/Disables adding video/gif to links"""
+    notify(update, command="/media")
+    reply(
+        update,
+        f"Media mode is *{_switch[toggler(update, 'media_mode')]}*\\.",
+    )
+
+
 ################################################################################
 # main body
 ################################################################################
@@ -371,6 +421,15 @@ def main() -> None:
 
     # get help
     dispatcher.add_handler(CommandHandler("help", command_help))
+
+    # toggle forwarding mode
+    dispatcher.add_handler(CommandHandler("forward", command_forward))
+
+    # toggle replying mode
+    dispatcher.add_handler(CommandHandler("reply", command_reply))
+
+    # toggle media media
+    dispatcher.add_handler(CommandHandler("media", command_media))
 
     # start bot
     updater.start_polling()
