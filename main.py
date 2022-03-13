@@ -132,7 +132,8 @@ link_dict = {
             )
             (?P<id>\d+)
         """,
-        "link": "twitter.com/{author}/status/{id}",
+        "link": "https://twitter.com/{author}/status/{id}",
+        "full": "https://pbs.twimg.com/media/{id}?format={format}&name=orig",
         "type": db.TWITTER,
     },
     "pixiv": {
@@ -145,7 +146,7 @@ link_dict = {
             )
             (?P<id>\d+)
         """,
-        "link": "www.pixiv.net/artworks/{id}",
+        "link": "https://www.pixiv.net/artworks/{id}",
         "type": db.PIXIV,
     },
 }
@@ -230,7 +231,7 @@ def formatter(query: str) -> list[Link]:
     for re_key, re_type in link_dict.items():
         for link in re.finditer(re_type["re"], query):
             # dictionary keys = format args
-            _link = "https://" + re_type["link"].format(**link.groupdict())
+            _link = re_type["link"].format(**link.groupdict())
             log.info("Received %s link: '%s'.", re_key, _link)
             # add to response list
             response.append(Link(re_type["type"], _link, int(link.group("id"))))
