@@ -8,7 +8,7 @@ form = "%(asctime)s > %(name)s [%(levelname)s]: %(message)s"
 
 [log.file]
 # enable logging to file
-enable = true
+enable = false
 # see logging levels
 level = "DEBUG"
 # see formatting settings
