@@ -76,7 +76,7 @@ config = tomli.load(Path(os.environ["PATH_SETTINGS"]).open("rb"))
 
 # session settings
 engine = create_engine(
-    os.environ["DATABASE_URI"],
+    os.environ["SB_CNT"].format(password=os.environ["SB_PSW"]),
     echo=True,
     echo_pool="debug",
     future=True,
