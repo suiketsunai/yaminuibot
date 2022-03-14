@@ -123,6 +123,7 @@ Link = namedtuple("Link", ["type", "link", "id"])
 ArtWorkMedia = namedtuple(
     "ArtWorkMedia",
     [
+        "link",
         "type",
         "id",
         "media",
@@ -177,10 +178,7 @@ _switch = {
 }
 
 # states
-states = (
-    CHANNEL,
-    TEST,
-) = map(chr, range(2))
+states = (CHANNEL,) = map(chr, range(1))
 
 # events
 not_busy = threading.Event()
@@ -364,14 +362,14 @@ def send_reply(update: Update, text: str, **kwargs) -> Message:
     Returns:
         Message: Telegram Message
     """
-    return update.message.reply_markdown_v2(
-        reply_to_message_id=update.message.message_id,
+    return update.effective_message.reply_markdown_v2(
+        reply_to_message_id=update.effective_message.message_id,
         text=text,
         **kwargs,
     )
 
 
-def error(update: Update, text: str, **kwargs) -> Message:
+def send_error(update: Update, text: str, **kwargs) -> Message:
     """Reply to current message with error
 
     Args:
@@ -381,8 +379,8 @@ def error(update: Update, text: str, **kwargs) -> Message:
     Returns:
         Message: Telegram Message
     """
-    return update.message.reply_markdown_v2(
-        reply_to_message_id=update.message.message_id,
+    return update.effective_message.reply_markdown_v2(
+        reply_to_message_id=update.effective_message.message_id,
         text="\\[`ERROR`\\] " + text,
         **kwargs,
     )
@@ -391,7 +389,7 @@ def error(update: Update, text: str, **kwargs) -> Message:
 def forward(update: Update, channel: int) -> Message:
     """Forward message to channel"""
     notify(update, func="forward")
-    return update.message.forward(
+    return update.effective_message.forward(
         chat_id=channel,
     )
 
@@ -439,15 +437,15 @@ def toggler(update: Update, attr: str) -> bool:
 
 def channel_check(update: Update, context: CallbackContext) -> int:
     """Checks if channel is a valid choice"""
-    mes = update.message
+    mes = update.effective_message
     if getattr(mes, "forward_from_chat"):
         channel = mes.forward_from_chat
         if channel.type == "supergroup":
-            error(update, "This message is from a supergroup\\.")
+            send_error(update, "This message is from a supergroup\\.")
         else:
             with Session(engine) as s:
                 if (c := s.get(db.Channel, channel.id)) and c.admin:
-                    error(update, "This channel is *already* owned\\.")
+                    send_error(update, "This channel is *already* owned\\.")
                 else:
                     send_reply(
                         update,
@@ -499,18 +497,18 @@ def channel_check(update: Update, context: CallbackContext) -> int:
                             del context.user_data[CHANNEL]
                             return ConversationHandler.END
                         else:
-                            error(
+                            send_error(
                                 update,
                                 "Either *the bot* or *you* "
                                 "are not an admin of this channel\\!",
                             )
                     except Unauthorized as ex:
-                        error(
+                        send_error(
                             update,
                             "The bot *was kicked* from this channel\\!",
                         )
     else:
-        error(update, "Please, *forward* a message from *your channel*\\.")
+        send_error(update, "Please, *forward* a message from *your channel*\\.")
 
     return CHANNEL
 
@@ -664,6 +662,9 @@ def get_twitter_links(tweet_id: int) -> ArtWorkMedia:
                 text = text.replace(url["url"], url["expanded_url"])
             text = text.replace(res.data.entities["urls"][-1]["url"], "")
             return ArtWorkMedia(
+                link_dict["twitter"]["link"].format(
+                    id=tweet_id, author=user.username
+                ),
                 db.TWITTER,
                 tweet_id,
                 kind,
@@ -682,7 +683,7 @@ def get_twitter_links(tweet_id: int) -> ArtWorkMedia:
 ################################################################################
 
 
-def get_twitter_media(illust: dict) -> ArtWorkMedia:
+def get_pixiv_media(illust: dict) -> ArtWorkMedia:
     """Collect information about pixiv artwork
 
     Args:
@@ -702,6 +703,7 @@ def get_twitter_media(illust: dict) -> ArtWorkMedia:
             [page.image_urls.large for page in illust.meta_pages],
         ]
     return ArtWorkMedia(
+        link_dict["pixiv"]["link"].format(id=illust.id),
         db.PIXIV,
         illust.id,
         illust.type,  # 'ugoira' or 'illust'
@@ -780,7 +782,7 @@ def get_pixiv_links(pixiv_id: int) -> ArtWorkMedia:
                     tries += 1
                     log.debug("Trying again [%s]...", tries)
         else:
-            return get_twitter_media(json_result.illust)
+            return get_pixiv_media(json_result.illust)
     return None
 
 
@@ -802,7 +804,7 @@ def command_start(update: Update, _) -> None:
                 )
             )
             s.commit()
-    update.message.reply_markdown_v2(
+    update.effective_message.reply_markdown_v2(
         text=f"Hello, {update.effective_user.mention_markdown_v2()}\\!\n"
         "Nice to meet you\\! My name is *Nuiko Hayami*\\. ❄️\n"
         "Please, see \\/help to learn more about me\\!",
@@ -971,7 +973,6 @@ def main() -> None:
         CommandHandler(
             "start",
             command_start,
-            run_async=True,
         )
     )
 
@@ -980,7 +981,6 @@ def main() -> None:
         CommandHandler(
             "help",
             command_help,
-            run_async=True,
         )
     )
 
@@ -989,7 +989,6 @@ def main() -> None:
         CommandHandler(
             "forward",
             command_forward,
-            run_async=True,
         )
     )
 
@@ -998,7 +997,6 @@ def main() -> None:
         CommandHandler(
             "reply",
             command_reply,
-            run_async=True,
         )
     )
 
@@ -1007,7 +1005,6 @@ def main() -> None:
         CommandHandler(
             "media",
             command_media,
-            run_async=True,
         )
     )
 
@@ -1016,7 +1013,6 @@ def main() -> None:
         CommandHandler(
             "style",
             command_style,
-            run_async=True,
         )
     )
 
@@ -1042,7 +1038,6 @@ def main() -> None:
                 channel_handler,
                 cancel_handler,
             ],
-            run_async=True,
         )
     )
 
