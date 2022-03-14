@@ -12,7 +12,7 @@ For now, only *the first one* found will be parsed\.
 
 \[ `TOGGLES` \]
 
-/forward \(_default_\: *off*\) — toggle forwarding messages to your channel\. Turn off for saving content\\.
+/forward \(_default_\: *off*\) — toggle forwarding messages to your channel\. Turn off for saving content\.
 
 /reply \(_default_\: *on*\) — toggle replying to your messages with the same content that will be posted to your channel\.
 
