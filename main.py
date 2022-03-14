@@ -253,6 +253,8 @@ def formatter(query: str) -> list[Link]:
     Returns:
         list[Link]: list of Links
     """
+    if not query:
+        return None
     response = []
     for re_key, re_type in link_dict.items():
         for link in re.finditer(re_type["re"], query):
