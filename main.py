@@ -534,6 +534,16 @@ def get_file_size(link: str, session: requests.Session = None) -> int:
     return 0
 
 
+def get_links(media: Link) -> ArtWorkMedia:
+    if media.type == db.TWITTER:
+        return get_twitter_links(media.id)
+    elif media.type == db.PIXIV:
+        return get_pixiv_links(media.id)
+    else:
+        log.warning("Error: Unknown media type: %s.", media.type)
+        return None
+
+
 ################################################################################
 # twitter
 ################################################################################
