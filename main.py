@@ -1020,12 +1020,15 @@ def main() -> None:
         )
     )
 
+    channel_handler = CommandHandler("channel", command_channel)
+    cancel_handler = CommandHandler("cancel", command_cancel)
+
     # add your channel
     dispatcher.add_handler(
         ConversationHandler(
             entry_points=[
-                CommandHandler("channel", command_channel),
-                CommandHandler("cancel", command_cancel),
+                channel_handler,
+                cancel_handler,
             ],
             states={
                 CHANNEL: [
@@ -1036,8 +1039,8 @@ def main() -> None:
                 ]
             },
             fallbacks=[
-                CommandHandler("channel", command_channel),
-                CommandHandler("cancel", command_cancel),
+                channel_handler,
+                cancel_handler,
             ],
             run_async=True,
         )
