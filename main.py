@@ -2,6 +2,7 @@
 import os
 import re
 import json
+import base64
 import logging
 import threading
 
@@ -210,6 +211,9 @@ pixiv_regex = r"^(?:\s*\d+\s*)+$"
 
 # telegram deep linking
 telegram_link = "t.me/c/{cid}/{post_id}"
+
+# filename pattern
+file_pattern = r".*\/(?P<name>.*?)((\?.*format\=)|(\.))(?P<format>\w+).*$"
 
 ################################################################################
 # file operations functions
@@ -459,6 +463,48 @@ def send_media_doc(
                 document=link,
                 **kwargs,
             )
+
+
+def download_media(info: dict, *, order: list[int] = None) -> None:
+    if info["type"] == db.PIXIV:
+        headers = {
+            "user-agent": "PixivIOSApp/7.13.3 (iOS 14.6; iPhone13,2)",
+            "app-os-version": "14.6",
+            "app-os": "ios",
+            "referer": "https://www.pixiv.net/",
+            "referrer-policy": "strict-origin-when-cross-origin",
+        }
+    else:
+        headers = fake_headers
+    links = []
+    if order:
+        for index in order:
+            links.append(info["links"][index - 1])
+    else:
+        links = info["links"]
+
+    for link in links:
+        file = requests.get(
+            link,
+            headers=headers,
+            allow_redirects=True,
+        )
+        reg = re.search(file_pattern, link)
+        if not reg:
+            log.error("Couldn't get name or format: %s.", link)
+            continue
+        name = reg.group("name") + "." + reg.group("format")
+        if os.environ["GOOGLE_URL"]:
+            log.info("Uploading file '%s'...", name)
+            r = requests.post(
+                url=os.environ["GOOGLE_URL"],
+                params={"name": name},
+                data=base64.urlsafe_b64encode(file.content),
+            )
+            if r.json()["ok"]:
+                log.info("Done uploading file '%s'.", name)
+            else:
+                log.info("File '%s' already exists.".name)
 
 
 def send_error(update: Update, text: str, **kwargs) -> Message:
@@ -1162,7 +1208,7 @@ def universal(update: Update, context: CallbackContext) -> None:
                         s.add(db.ArtWork(**artwork, forwarded_channel=c))
                         s.commit()
                     if data["reply_mode"]:
-                        send_reply(update, f"Forwarded\\! {link.link}")
+                        send_reply(update, f"Forwarded\\! {esc(link.link)}")
                     if data["media_mode"]:
                         send_media_doc(
                             context,
@@ -1171,6 +1217,8 @@ def universal(update: Update, context: CallbackContext) -> None:
                             chat_id=data["channel_id"],
                             reply_to_message_id=post.message_id,
                         )
+                    if int(os.environ["USER"]) == update.effective_chat.id:
+                        download_media(get_links(link)._asdict())
             else:
                 for link in links:
                     is_orig = check_original(link.id, link.type)
@@ -1212,6 +1260,8 @@ def universal(update: Update, context: CallbackContext) -> None:
                                     chat_id=data["channel_id"],
                                     reply_to_message_id=post.message_id,
                                 )
+                            if int(os.environ["USER"]) == update.effective_chat.id:
+                                download_media(art._asdict())
                         continue
                     if link.type == db.PIXIV:
                         if len(art.links) == 1:
@@ -1233,6 +1283,8 @@ def universal(update: Update, context: CallbackContext) -> None:
                                     send_reply(
                                         update, f"Sent\\! {esc(art.link)}"
                                     )
+                                if int(os.environ["USER"]) == update.effective_chat.id:
+                                    download_media(art._asdict())
                         else:
                             with Session(engine) as s:
                                 u = s.get(db.User, mes.chat_id)
@@ -1290,6 +1342,8 @@ def universal(update: Update, context: CallbackContext) -> None:
                     reply_to_message_id=mes.message_id,
                     chat_id=mes.chat_id,
                 )
+            if int(os.environ["USER"]) == update.effective_chat.id:
+                download_media(data["last_info"], order=ids)
         else:
             send_media_doc(
                 context,
@@ -1353,6 +1407,8 @@ def answer_query(update: Update, context: CallbackContext) -> None:
                     chat_id=data["channel_id"],
                     reply_to_message_id=post.message_id,
                 )
+            if int(os.environ["USER"]) == update.effective_chat.id:
+                download_media(art._asdict())
         result = "`\\[` *POST HAS BEEN POSTED\\.* `\\]`"
     elif art.type == db.PIXIV:
         if len(art.links) == 1:
