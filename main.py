@@ -382,6 +382,27 @@ def send_reply(update: Update, text: str, **kwargs) -> Message:
     )
 
 
+def send_warning(update: Update, link: Link, **kwargs) -> Message:
+    """Reply to current message
+
+    Args:
+        update (Update): current update
+        text (str): text to send in markdown v2
+
+    Returns:
+        Message: Telegram Message
+    """
+    posted = get_other_links(link.id, link.type)
+    text = ", and ".join([f"[here]({esc(post)})" for post in posted])
+    return update.effective_message.reply_markdown_v2(
+        f"This [artwork]({esc(link.link)}) was already posted\\: {text}\\.\n\n"
+        "`\\[` ⚠️ *POST IT ANYWAY\\?* ⚠️ `\\]`",
+        reply_markup=InlineKeyboardMarkup.from_button(
+            InlineKeyboardButton(text="Post!", callback_data="post")
+        ),
+    )
+
+
 def send_post(
     context: CallbackContext,
     info: dict,
