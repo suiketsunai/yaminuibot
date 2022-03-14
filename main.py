@@ -369,6 +369,51 @@ def send_reply(update: Update, text: str, **kwargs) -> Message:
     )
 
 
+def send_media_group(
+    context: CallbackContext,
+    info: dict,
+    *,
+    order: list[int] = None,
+    **kwargs,
+):
+    if order:
+        media = [InputMediaPhoto(info["thumbs"][i - 1]) for i in order]
+    else:
+        limit = len(info["links"]) if len(info["links"]) <= 10 else 10
+        media = [InputMediaPhoto(info["thumbs"][i]) for i in range(limit)]
+    media[0].caption = esc(info["link"])
+    media[0].parse_mode = ParseMode.MARKDOWN_V2
+    return context.bot.send_media_group(
+        media=media,
+        **kwargs,
+    )
+
+
+def send_media_doc(
+    context: CallbackContext,
+    info: dict,
+    *,
+    media_filter: list[str] = None,
+    order: list[int] = None,
+    **kwargs,
+) -> Message:
+    if media_filter:
+        if info["media"] not in media_filter:
+            return
+    if order:
+        for index in order:
+            context.bot.send_document(
+                document=info["links"][index - 1],
+                **kwargs,
+            )
+    else:
+        for link in info["links"]:
+            context.bot.send_document(
+                document=link,
+                **kwargs,
+            )
+
+
 def send_error(update: Update, text: str, **kwargs) -> Message:
     """Reply to current message with error
 
