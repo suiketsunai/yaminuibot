@@ -176,10 +176,6 @@ class ArtWork(Base):
     )
     # files
     files = Column(JSON)
-    # files count
-    @property
-    def count(self):
-        return len(self.files)
 
     # add unique constraints
     __table_args__ = (
