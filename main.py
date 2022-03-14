@@ -204,6 +204,12 @@ pixiv_api = {
     "REFRESH_TOKEN": os.environ["REFRESH_TOKEN"],
 }
 
+# pixiv regex
+pixiv_regex = r"^(?:\s*\d+\s*)+$"
+
+# telegram deep linking
+telegram_link = "t.me/c/{cid}/{post_id}"
+
 ################################################################################
 # file operations functions
 ################################################################################
