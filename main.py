@@ -1392,6 +1392,36 @@ def answer_query(update: Update, context: CallbackContext) -> None:
     )
 
 
+def handle_post(update: Update, context: CallbackContext) -> None:
+    print(f"\n\n{json.dumps(update.to_dict(), indent=2, default=str)}\n\n")
+
+    mes = update.effective_message
+    if not ((text := mes.text) or (text := mes.caption)):
+        return
+    if links := formatter(text):
+        if len(links) > 1:
+            return
+        else:
+            link = links[0]
+            artwork = {
+                "aid": link.id,
+                "type": link.type,
+                "is_original": check_original(link.id, link.type),
+                "is_forwarded": bool(mes.forward_date),
+                "post_id": mes.message_id,
+                "post_date": mes.date,
+                "channel_id": update.effective_chat.id,
+            }
+            with Session(engine) as s:
+                c = None
+                if getattr(mes, "forward_from_chat"):
+                    c = s.get(db.Channel, mes.forward_from_chat.id)
+                    log.info("Forwarded channel: '%s'.", c.name)
+                s.add(db.ArtWork(**artwork, forwarded_channel=c))
+                s.commit()
+    return
+
+
 ################################################################################
 # main body
 ################################################################################
@@ -1493,12 +1523,19 @@ def main() -> None:
         MessageHandler(
             Filters.chat_type.private & ~Filters.command,
             universal,
-            run_async=True,
         )
     )
 
     # handle force posting
     dispatcher.add_handler(CallbackQueryHandler(answer_query))
+
+    # handle channels posts
+    dispatcher.add_handler(
+        MessageHandler(
+            Filters.chat_type.channel & ~Filters.command,
+            handle_post,
+        )
+    )
 
     # start bot
     updater.start_polling()
