@@ -117,11 +117,12 @@ def setup_logging():
 ################################################################################
 
 Link = namedtuple("Link", ["type", "link", "id"])
-TwitterMedia = namedtuple(
-    "TwitterMedia",
+ArtWorkMedia = namedtuple(
+    "ArtWorkMedia",
     [
-        "id",
         "type",
+        "id",
+        "media",
         "user_id",
         "user",
         "username",
@@ -529,7 +530,22 @@ def get_file_size(link: str, session: requests.Session = None) -> int:
 ################################################################################
 
 
-def get_twitter_media(tweet_id, media_type=None, source_url=None) -> list:
+def get_twitter_media(
+    tweet_id: int,
+    media_type: str = None,
+    image_list: list[str] = None,
+) -> list[list[str], list[str]]:
+    """Collect media links from tweet data
+
+    Args:
+        tweet_id (int): tweet id
+        media_type (str, optional): "photo", "video" or "animated_gif".
+        Defaults to None.
+        image_list (list[str], optional): list of image links. Defaults to None.
+
+    Returns:
+        list[list[str], list[str]]: media links
+    """
     if media_type == "photo":
         pat = r"""(?x)
             (?:
@@ -542,7 +558,7 @@ def get_twitter_media(tweet_id, media_type=None, source_url=None) -> list:
             (?P<format>\w+)
         """
         links = []
-        for url in source_url:
+        for url in image_list:
             reg = re.search(pat, url)
             links.append(link_dict["twitter"]["full"].format(**reg.groupdict()))
         return [links, [link.replace("orig", "large") for link in links]]
@@ -569,8 +585,15 @@ def get_twitter_media(tweet_id, media_type=None, source_url=None) -> list:
         ]
 
 
-def get_twitter_links(tweet_id: int) -> TwitterMedia:
-    # start client
+def get_twitter_links(tweet_id: int) -> ArtWorkMedia:
+    """Get illustration info with twitter api by id
+
+    Args:
+        tweet_id (int): tweet id
+
+    Returns:
+        ArtWorkMedia: artwork object
+    """
     log.debug("Starting Twitter API client...")
     client = tweepy.Client(os.environ["TWITTER_TOKEN"])
     res = client.get_tweet(
@@ -619,7 +642,8 @@ def get_twitter_links(tweet_id: int) -> TwitterMedia:
             for url in res.data.entities["urls"][:-1]:
                 text = text.replace(url["url"], url["expanded_url"])
             text = text.replace(res.data.entities["urls"][-1]["url"], "")
-            return TwitterMedia(
+            return ArtWorkMedia(
+                db.TWITTER,
                 tweet_id,
                 kind,
                 user.id,
