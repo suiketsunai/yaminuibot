@@ -27,7 +27,14 @@ from dateutil import tz
 from dateutil.parser import parse
 
 # telegram core bot api
-from telegram import Message, Update
+from telegram import (
+    InlineKeyboardMarkup,
+    Message,
+    ParseMode,
+    Update,
+    InputMediaPhoto,
+    InlineKeyboardButton,
+)
 
 # telegram core bot api extension
 from telegram.ext import (
@@ -365,6 +372,18 @@ def send_reply(update: Update, text: str, **kwargs) -> Message:
     return update.effective_message.reply_markdown_v2(
         reply_to_message_id=update.effective_message.message_id,
         text=text,
+        **kwargs,
+    )
+
+
+def send_post(
+    context: CallbackContext,
+    info: dict,
+    **kwargs,
+):
+    return context.bot.send_message(
+        text=esc(info["link"]),
+        parse_mode=ParseMode.MARKDOWN_V2,
         **kwargs,
     )
 
