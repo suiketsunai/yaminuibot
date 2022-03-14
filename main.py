@@ -202,8 +202,8 @@ fake_headers = {
 
 # pixiv tokens
 pixiv_api = {
-    "ACCESS_TOKEN": os.environ["ACCESS_TOKEN"],
-    "REFRESH_TOKEN": os.environ["REFRESH_TOKEN"],
+    "ACCESS_TOKEN": os.environ["PX_ACCESS"],
+    "REFRESH_TOKEN": os.environ["PX_REFRESH"],
 }
 
 # pixiv regex
@@ -494,17 +494,17 @@ def download_media(info: dict, *, order: list[int] = None) -> None:
             log.error("Couldn't get name or format: %s.", link)
             continue
         name = reg.group("name") + "." + reg.group("format")
-        if os.environ["GOOGLE_URL"]:
+        if os.environ["GG_URL"]:
             log.info("Uploading file '%s'...", name)
             r = requests.post(
-                url=os.environ["GOOGLE_URL"],
+                url=os.environ["GG_URL"],
                 params={"name": name},
                 data=base64.urlsafe_b64encode(file.content),
             )
             if r.json()["ok"]:
                 log.info("Done uploading file '%s'.", name)
             else:
-                log.info("File '%s' already exists.".name)
+                log.info("File '%s' already exists.", name)
 
 
 def send_error(update: Update, text: str, **kwargs) -> Message:
@@ -811,7 +811,7 @@ def get_twitter_links(tweet_id: int) -> ArtWorkMedia:
         ArtWorkMedia: artwork object
     """
     log.debug("Starting Twitter API client...")
-    client = tweepy.Client(os.environ["TWITTER_TOKEN"])
+    client = tweepy.Client(os.environ["TW_TOKEN"])
     res = client.get_tweet(
         id=tweet_id,
         expansions=[
@@ -1119,6 +1119,7 @@ def universal(update: Update, context: CallbackContext) -> None:
         context (CallbackContext): current context
     """
     notify(update, func="universal")
+    chat_id = update.effective_chat.id
     # get data
     if not (data := get_user_data(update)):
         return
@@ -1217,7 +1218,7 @@ def universal(update: Update, context: CallbackContext) -> None:
                             chat_id=data["channel_id"],
                             reply_to_message_id=post.message_id,
                         )
-                    if int(os.environ["USER"]) == update.effective_chat.id:
+                    if int(os.environ["USER_ID"]) == chat_id:
                         download_media(get_links(link)._asdict())
             else:
                 for link in links:
@@ -1260,7 +1261,7 @@ def universal(update: Update, context: CallbackContext) -> None:
                                     chat_id=data["channel_id"],
                                     reply_to_message_id=post.message_id,
                                 )
-                            if int(os.environ["USER"]) == update.effective_chat.id:
+                            if int(os.environ["USER_ID"]) == chat_id:
                                 download_media(art._asdict())
                         continue
                     if link.type == db.PIXIV:
@@ -1283,7 +1284,7 @@ def universal(update: Update, context: CallbackContext) -> None:
                                     send_reply(
                                         update, f"Sent\\! {esc(art.link)}"
                                     )
-                                if int(os.environ["USER"]) == update.effective_chat.id:
+                                if int(os.environ["USER_ID"]) == chat_id:
                                     download_media(art._asdict())
                         else:
                             with Session(engine) as s:
@@ -1342,7 +1343,7 @@ def universal(update: Update, context: CallbackContext) -> None:
                     reply_to_message_id=mes.message_id,
                     chat_id=mes.chat_id,
                 )
-            if int(os.environ["USER"]) == update.effective_chat.id:
+            if int(os.environ["USER_ID"]) == chat_id:
                 download_media(data["last_info"], order=ids)
         else:
             send_media_doc(
@@ -1360,6 +1361,7 @@ def universal(update: Update, context: CallbackContext) -> None:
 
 
 def answer_query(update: Update, context: CallbackContext) -> None:
+    chat_id = update.effective_chat.id
     if not (data := get_user_data(update)):
         return
     if not data["forward_mode"]:
@@ -1407,7 +1409,7 @@ def answer_query(update: Update, context: CallbackContext) -> None:
                     chat_id=data["channel_id"],
                     reply_to_message_id=post.message_id,
                 )
-            if int(os.environ["USER"]) == update.effective_chat.id:
+            if int(os.environ["USER_ID"]) == chat_id:
                 download_media(art._asdict())
         result = "`\\[` *POST HAS BEEN POSTED\\.* `\\]`"
     elif art.type == db.PIXIV:
