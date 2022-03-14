@@ -352,7 +352,7 @@ def migrate_db() -> None:
 esc = partial(escape_markdown, version=2)
 
 
-def reply(update: Update, text: str, **kwargs) -> Message:
+def send_reply(update: Update, text: str, **kwargs) -> Message:
     """Reply to current message
 
     Args:
@@ -447,7 +447,7 @@ def channel_check(update: Update, context: CallbackContext) -> int:
                 if (c := s.get(db.Channel, channel.id)) and c.admin:
                     error(update, "This channel is *already* owned\\.")
                 else:
-                    reply(
+                    send_reply(
                         update,
                         "*Seems fine\\!* ✨\n"
                         "Checking for *admin rights*\\.\\.\\.",
@@ -489,7 +489,7 @@ def channel_check(update: Update, context: CallbackContext) -> int:
                                 )
                             # commit changes to database
                             s.commit()
-                            reply(
+                            send_reply(
                                 update,
                                 "*Done\\!* 🎉\n"
                                 "*Your channel* is added to the database\\!",
@@ -799,21 +799,23 @@ def command_start(update: Update, _) -> None:
 
 def command_help(update: Update, _) -> None:
     """Send a message when the command /help is issued."""
-    reply(update, Path(os.environ["HELP_FILE"]).read_text(encoding="utf-8"))
+    send_reply(
+        update, Path(os.environ["HELP_FILE"]).read_text(encoding="utf-8")
+    )
 
 
 def command_channel(update: Update, context: CallbackContext) -> int:
     """Starts process of adding user's channel to their profile"""
     notify(update, command="/channel")
     if context.user_data.get(CHANNEL, None):
-        reply(
+        send_reply(
             update,
             "*Ehm\\.\\.\\.*\n"
             "Please, forward a post from *your channel* already\\.",
         )
         return CHANNEL
     context.user_data[CHANNEL] = True
-    reply(
+    send_reply(
         update,
         "*Sure\\!* 💫\n"
         "Please, add *this bot* to *your channel* as admin\\.\n"
@@ -825,20 +827,22 @@ def command_channel(update: Update, context: CallbackContext) -> int:
 def command_cancel(update: Update, context: CallbackContext) -> int:
     """Cancels and ends the conversation"""
     notify(update, command="/cancel")
-
     if context.user_data.get(CHANNEL, None):
         context.user_data[CHANNEL] = False
-        reply(update, "*Okay\\!* 👌\nYou can add *your channel* at any time\\.")
+        send_reply(
+            update, "*Okay\\!* 👌\nYou can add *your channel* at any time\\."
+        )
         return ConversationHandler.END
     else:
-        reply(update, "*Yeah, sure\\.* 👀\nCancel all you want\\.")
+        send_reply(update, "*Yeah, sure\\.* 👀\nCancel all you want\\.")
 
 
 def command_forward(update: Update, _) -> None:
     """Enables/Disables forwarding to channel"""
+    not_busy.wait()
     not_busy.clear()
     notify(update, command="/forward")
-    reply(
+    send_reply(
         update,
         f"Forwarding mode is *{_switch[toggler(update, 'forward_mode')]}*\\.",
     )
@@ -847,9 +851,10 @@ def command_forward(update: Update, _) -> None:
 
 def command_reply(update: Update, _) -> None:
     """Enables/Disables replying to messages"""
+    not_busy.wait()
     not_busy.clear()
     notify(update, command="/reply")
-    reply(
+    send_reply(
         update,
         f"Replying mode is *{_switch[toggler(update, 'reply_mode')]}*\\.",
     )
@@ -858,9 +863,10 @@ def command_reply(update: Update, _) -> None:
 
 def command_media(update: Update, _) -> None:
     """Enables/Disables adding video/gif to links"""
+    not_busy.wait()
     not_busy.clear()
     notify(update, command="/media")
-    reply(
+    send_reply(
         update,
         f"Media mode is *{_switch[toggler(update, 'media_mode')]}*\\.",
     )
@@ -869,6 +875,7 @@ def command_media(update: Update, _) -> None:
 
 def command_style(update: Update, _) -> None:
     """Change pixiv style."""
+    not_busy.wait()
     not_busy.clear()
     notify(update, command="/style")
     with Session(engine) as s:
@@ -884,7 +891,7 @@ def command_style(update: Update, _) -> None:
             style = "\\[ `Image(s)` \\]\n\nArtwork \\| Author\nLink"
         case 2:
             style = "Artwork \\| Author\nLink"
-    reply(update, f"Style has been changed to\\:\n\n{style}\\.")
+    send_reply(update, f"Style has been changed to\\:\n\n{style}\\.")
     not_busy.set()
 
 
@@ -1010,7 +1017,10 @@ def main() -> None:
             ],
             states={
                 CHANNEL: [
-                    MessageHandler(~Filters.command, channel_check),
+                    MessageHandler(
+                        Filters.chat_type.private & ~Filters.command,
+                        channel_check,
+                    ),
                 ]
             },
             fallbacks=[
@@ -1023,7 +1033,7 @@ def main() -> None:
 
     dispatcher.add_handler(
         MessageHandler(
-            Filters.forwarded & ~Filters.command,
+            Filters.chat_type.private & Filters.forwarded & ~Filters.command,
             forward_post,
             run_async=True,
         )
