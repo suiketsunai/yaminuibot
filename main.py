@@ -215,9 +215,20 @@ telegram_link = "t.me/c/{cid}/{post_id}"
 # filename pattern
 file_pattern = r".*\/(?P<name>.*?)((\?.*format\=)|(\.))(?P<format>\w+).*$"
 
+# twitter link id
+twi_id = r"(?:.*\/(?P<id>.+)(?:\.|\?f))"
+
 ################################################################################
 # file operations functions
 ################################################################################
+
+
+def extract_media_ids(art: dict) -> list[str]:
+    if art["type"] == db.TWITTER:
+        return [re.search(twi_id, link).group("id") for link in art["links"]]
+    if art["type"] == db.PIXIV:
+        return [art["id"]]
+    return None
 
 
 def row2dict(row) -> dict:
@@ -1248,6 +1259,7 @@ def universal(update: Update, context: CallbackContext) -> None:
                                         **artwork,
                                         post_id=post.message_id,
                                         post_date=post.date,
+                                        files=extract_media_ids(art._asdict()),
                                     )
                                 )
                                 s.commit()
@@ -1277,6 +1289,9 @@ def universal(update: Update, context: CallbackContext) -> None:
                                             **artwork,
                                             post_id=post[0].message_id,
                                             post_date=post[0].date,
+                                            files=extract_media_ids(
+                                                art._asdict()
+                                            ),
                                         )
                                     )
                                     s.commit()
@@ -1333,7 +1348,12 @@ def universal(update: Update, context: CallbackContext) -> None:
                     }
                 )
                 with Session(engine) as s:
-                    s.add(db.ArtWork(**artwork))
+                    s.add(
+                        db.ArtWork(
+                            **artwork,
+                            files=extract_media_ids(data["last_info"]),
+                        )
+                    )
                     s.commit()
             if data["reply_mode"]:
                 send_media_group(
@@ -1396,6 +1416,7 @@ def answer_query(update: Update, context: CallbackContext) -> None:
                         **artwork,
                         post_id=post.message_id,
                         post_date=post.date,
+                        files=extract_media_ids(art._asdict()),
                     )
                 )
                 s.commit()
@@ -1425,6 +1446,7 @@ def answer_query(update: Update, context: CallbackContext) -> None:
                             **artwork,
                             post_id=post[0].message_id,
                             post_date=post[0].date,
+                            files=extract_media_ids(art._asdict()),
                         )
                     )
                     s.commit()
