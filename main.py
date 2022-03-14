@@ -1516,12 +1516,20 @@ def main() -> None:
     # migrate_db()
 
     # create updater & dispatcher
-    updater = Updater(
-        os.environ["TOKEN"],
-        request_kwargs={
-            "read_timeout": 6,
-            "connect_timeout": 7,
-        },
+    updater = Updater(os.environ["TOKEN"])
+
+    # start bot
+    webhook = (
+        "https://"
+        + os.environ["APP_NAME"]
+        + ".herokuapp.com/"
+        + os.environ["TOKEN"]
+    )
+    updater.start_webhook(
+        listen="0.0.0.0",
+        port=int(os.environ.get("PORT", "8443")),
+        url_path=os.environ["TOKEN"],
+        webhook_url=webhook,
     )
     dispatcher = updater.dispatcher
 
