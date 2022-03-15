@@ -1186,6 +1186,12 @@ def universal(update: Update, context: CallbackContext) -> None:
                     if not (art := get_twitter_links(link.id)):
                         send_error(update, "Couldn't get this content\\!")
                         return
+                    if data["reply_mode"]:
+                        send_post(
+                            context,
+                            art._asdict(),
+                            chat_id=chat_id,
+                        )
                     send_media_doc(
                         context,
                         art._asdict(),
@@ -1200,6 +1206,15 @@ def universal(update: Update, context: CallbackContext) -> None:
                         send_error(update, "Couldn't get this content\\!")
                         return
                     elif len(art.links) == 1:
+                        if data["reply_mode"]:
+                            send_media_group(
+                                context,
+                                art._asdict(),
+                                style=data["pixiv_style"],
+                                reply_to_message_id=mes.message_id,
+                                chat_id=chat_id,
+                            )
+                            send_reply(update, f"Sending a file\\.\\.\\.")
                         send_media_doc(
                             context,
                             art._asdict(),
