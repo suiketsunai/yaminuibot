@@ -24,8 +24,10 @@ from sqlalchemy_repr import RepresentableBase
 pixiv = (
     IMAGE_LINK,
     IMAGE_INFO_LINK,
+    IMAGE_INFO_EMBED_LINK,
     INFO_LINK,
-) = range(3)
+    INFO_EMBED_LINK,
+) = range(5)
 
 # link types
 types = (

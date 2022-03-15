@@ -450,9 +450,21 @@ def send_media_group(
             caption = esc(info["link"])
         case db.IMAGE_INFO_LINK:
             caption = esc(f'{info["desc"]} | {info["user"]}\n{info["link"]}')
+        case db.IMAGE_INFO_EMBED_LINK:
+            temp = esc(f'{info["desc"]} | {info["user"]}\n')
+            caption = f'[{temp}]({esc(info["link"])})'
         case db.INFO_LINK:
+            caption = esc(f'{info["desc"]} | {info["user"]}\n{info["link"]}')
             return context.bot.send_message(
-                text=esc(f'{info["desc"]} | {info["user"]}\n{info["link"]}'),
+                text=caption,
+                parse_mode=ParseMode.MARKDOWN_V2,
+                **kwargs,
+            )
+        case db.INFO_EMBED_LINK:
+            temp = esc(f'{info["desc"]} | {info["user"]}\n')
+            caption = f'[{temp}]({esc(info["link"])})'
+            return context.bot.send_message(
+                text=caption,
                 parse_mode=ParseMode.MARKDOWN_V2,
                 **kwargs,
             )
@@ -1127,8 +1139,14 @@ def command_style(update: Update, _) -> None:
             style = "\\[ `Image(s)` \\]\n\nLink"
         case db.IMAGE_INFO_LINK:
             style = "\\[ `Image(s)` \\]\n\nArtwork \\| Author\nLink"
+        case db.IMAGE_INFO_EMBED_LINK:
+            style = "\\[ `Image(s)` \\]\n\n[Artwork \\| Author](Link)"
         case db.INFO_LINK:
             style = "Artwork \\| Author\nLink"
+        case db.INFO_EMBED_LINK:
+            style = "[Artwork \\| Author](Link)"
+        case _:
+            style = "Unknown"
     send_reply(update, f"Style has been changed to\\:\n\n{style}\\.")
     not_busy.set()
 
