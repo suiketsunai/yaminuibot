@@ -1318,7 +1318,10 @@ def universal(update: Update, context: CallbackContext) -> None:
                                 )
                                 s.commit()
                             if data["reply_mode"]:
-                                send_reply(update, f"Posted\\! {esc(art.link)}")
+                                send_reply(
+                                    update,
+                                    f"Posted\\!\n{esc(art.link)}",
+                                )
                             if data["media_mode"]:
                                 send_media_doc(
                                     context,
@@ -1363,7 +1366,8 @@ def universal(update: Update, context: CallbackContext) -> None:
                                         chat_id=chat_id,
                                     )
                                     send_reply(
-                                        update, f"Posted\\! {esc(art.link)}"
+                                        update,
+                                        f"Posted\\!\n{esc(art.link)}",
                                     )
                                 if int(os.environ["USER_ID"]) == chat_id:
                                     download_media(art._asdict())
@@ -1432,7 +1436,10 @@ def universal(update: Update, context: CallbackContext) -> None:
                         reply_to_message_id=mes.message_id,
                         chat_id=chat_id,
                     )
-                    send_reply(update, f"Posted\\! {esc(art.link)}")
+                    send_reply(
+                        update,
+                        f"Posted\\!\n{esc(art.link)}",
+                    )
                 if int(os.environ["USER_ID"]) == chat_id:
                     download_media(data["last_info"], order=ids)
         else:
@@ -1504,7 +1511,10 @@ def answer_query(update: Update, context: CallbackContext) -> None:
                 )
                 s.commit()
             if data["reply_mode"]:
-                send_reply(update, f"Posted\\! {esc(art.link)}")
+                send_reply(
+                    update,
+                    f"Posted\\!\n{esc(art.link)}",
+                )
             if data["media_mode"]:
                 send_media_doc(
                     context,
@@ -1546,7 +1556,10 @@ def answer_query(update: Update, context: CallbackContext) -> None:
                         reply_to_message_id=update.effective_message.message_id,
                         chat_id=chat_id,
                     )
-                    send_reply(update, f"Posted\\! {esc(art.link)}")
+                    send_reply(
+                        update,
+                        f"Posted\\!\n{esc(art.link)}",
+                    )
                 result = "`\\[` *POST HAS BEEN POSTED\\.* `\\]`"
         else:
             with Session(engine) as s:
