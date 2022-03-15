@@ -453,6 +453,7 @@ def send_media_group(
         case db.INFO_LINK:
             return context.bot.send_message(
                 text=esc(f'{info["desc"]} | {info["user"]}\n{info["link"]}'),
+                parse_mode=ParseMode.MARKDOWN_V2,
                 **kwargs,
             )
         case _:
