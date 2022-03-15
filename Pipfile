@@ -15,6 +15,7 @@ python-telegram-bot = "*"
 tweepy = "*"
 requests = "*"
 pixivpy = "*"
+pillow = "*"
 
 [dev-packages]
 black = "*"

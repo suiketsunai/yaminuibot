@@ -1,6 +1,7 @@
 """Main module"""
 import os
 import re
+import io
 import json
 import base64
 import logging
@@ -62,6 +63,9 @@ from pixivpy3 import AppPixivAPI
 
 # twitter api
 import tweepy
+
+# working with images
+from PIL import Image
 
 # database models
 import db.models as db
@@ -439,11 +443,10 @@ def send_media_group(
     style: int = None,
     **kwargs,
 ):
-    if order:
-        media = [InputMediaPhoto(info["thumbs"][i - 1]) for i in order]
-    else:
-        limit = len(info["links"]) if len(info["links"]) <= 10 else 10
-        media = [InputMediaPhoto(info["thumbs"][i]) for i in range(limit)]
+    media = []
+    for file in download_media(info, full=False, order=order):
+        media.append(InputMediaPhoto(file.read_bytes()))
+        file.unlink()
     caption = ""
     match style:
         case db.IMAGE_LINK:
@@ -503,7 +506,12 @@ def send_media_doc(
             )
 
 
-def download_media(info: dict, *, order: list[int] = None) -> None:
+def download_media(
+    info: dict,
+    *,
+    full: bool = True,
+    order: list[int] = None,
+) -> None:
     if info["type"] == db.PIXIV:
         headers = {
             "user-agent": "PixivIOSApp/7.13.3 (iOS 14.6; iPhone13,2)",
@@ -519,8 +527,11 @@ def download_media(info: dict, *, order: list[int] = None) -> None:
         for index in order:
             links.append(info["links"][index - 1])
     else:
-        links = info["links"]
-
+        if full or len(info["links"]) <= 10:
+            links = info["links"]
+        else:
+            links = info["links"][:10]
+    files = []
     for link in links:
         file = requests.get(
             link,
@@ -532,18 +543,24 @@ def download_media(info: dict, *, order: list[int] = None) -> None:
             log.error("Couldn't get name or format: %s.", link)
             continue
         name = reg.group("name") + "." + reg.group("format")
-        if os.environ["GG_URL"]:
-            log.info("Uploading file '%s'...", name)
-            r = requests.post(
-                url=os.environ["GG_URL"],
-                params={"name": name},
-                data=base64.urlsafe_b64encode(file.content),
-            )
-            if r.json()["ok"]:
-                log.info("Done uploading file '%s'.", name)
-            else:
-                log.info("File '%s' already exists.", name)
-
+        if full:
+            if os.environ["GG_URL"]:
+                log.info("Uploading file '%s'...", name)
+                r = requests.post(
+                    url=os.environ["GG_URL"],
+                    params={"name": name},
+                    data=base64.urlsafe_b64encode(file.content),
+                )
+                if r.json()["ok"]:
+                    log.info("Done uploading file '%s'.", name)
+                else:
+                    log.info("File '%s' already exists.", name)
+        else:
+            image = Image.open(io.BytesIO(file.content))
+            image.thumbnail([1280, 1280])
+            file = Path(name)
+            image.save(file)
+            files.append(file)
 
 def send_error(update: Update, text: str, **kwargs) -> Message:
     """Reply to current message with error
