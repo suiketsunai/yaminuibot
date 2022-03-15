@@ -227,7 +227,7 @@ def extract_media_ids(art: dict) -> list[str]:
     if art["type"] == db.TWITTER:
         return [re.search(twi_id, link).group("id") for link in art["links"]]
     if art["type"] == db.PIXIV:
-        return [art["id"]]
+        return [str(art["id"])]
     return None
 
 
