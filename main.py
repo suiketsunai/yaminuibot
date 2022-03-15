@@ -1157,18 +1157,22 @@ def universal(update: Update, context: CallbackContext) -> None:
                         reply_to_message_id=mes.message_id,
                         chat_id=mes.chat_id,
                     )
+                    if int(os.environ["USER_ID"]) == chat_id:
+                        download_media(art._asdict())
                     continue
                 if link.type == db.PIXIV:
                     if not (art := get_pixiv_links(link.id)):
                         send_error(update, "Couldn't get this content\\!")
                         return
-                    elif len(art.links) <= 10:
+                    elif len(art.links) == 1:
                         send_media_doc(
                             context,
                             art._asdict(),
                             reply_to_message_id=mes.message_id,
                             chat_id=mes.chat_id,
                         )
+                        if int(os.environ["USER_ID"]) == chat_id:
+                            download_media(art._asdict())
                         continue
                     else:
                         with Session(engine) as s:
@@ -1320,7 +1324,8 @@ def universal(update: Update, context: CallbackContext) -> None:
             return
         if max(ids) > count or min(ids) < 1:
             send_error(
-                update, f"*Not within* range *\\[*`1`\\-`{count}`*\\]*\\!"
+                update,
+                f"*Not within* range *\\[*`1`\\-`{count}`*\\]*\\!",
             )
             return
         if data["forward_mode"]:
@@ -1372,6 +1377,8 @@ def universal(update: Update, context: CallbackContext) -> None:
                 order=ids,
                 chat_id=mes.chat_id,
             )
+            if int(os.environ["USER_ID"]) == chat_id:
+                download_media(data["last_info"], order=ids)
         with Session(engine) as s:
             u = s.get(db.User, mes.chat_id)
             u.last_info = None
