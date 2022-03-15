@@ -1604,6 +1604,14 @@ def handle_post(update: Update, context: CallbackContext) -> None:
                 "channel_id": update.effective_chat.id,
             }
             with Session(engine) as s:
+                if (
+                    s.query(db.ArtWork)
+                    .where(db.ArtWork.channel_id == update.effective_chat.id)
+                    .where(db.ArtWork.post_id == mes.message_id)
+                    .count()
+                ):
+                    log.info("Already in database. Skipping...")
+                    return
                 c = None
                 if getattr(mes, "forward_from_chat"):
                     c = s.get(db.Channel, mes.forward_from_chat.id)
