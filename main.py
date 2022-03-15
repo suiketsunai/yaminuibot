@@ -1134,20 +1134,21 @@ def command_style(update: Update, _) -> None:
         new_style = db.pixiv[(old_style + 1) % len(db.pixiv)]
         u.pixiv_style = new_style
         s.commit()
+    link = esc("https://www.pixiv.net/")
     match new_style:
         case db.IMAGE_LINK:
             style = "\\[ `Image(s)` \\]\n\nLink"
         case db.IMAGE_INFO_LINK:
             style = "\\[ `Image(s)` \\]\n\nArtwork \\| Author\nLink"
         case db.IMAGE_INFO_EMBED_LINK:
-            style = "\\[ `Image(s)` \\]\n\n[Artwork \\| Author](Link)"
+            style = f"\\[ `Image(s)` \\]\n\n[Artwork \\| Author]({link})"
         case db.INFO_LINK:
             style = "Artwork \\| Author\nLink"
         case db.INFO_EMBED_LINK:
-            style = "[Artwork \\| Author](Link)"
+            style = f"[Artwork \\| Author]({link})"
         case _:
             style = "Unknown"
-    send_reply(update, f"Style has been changed to\\:\n\n{style}\\.")
+    send_reply(update, f"_Style has been changed to_\\:\n\n{style}\\")
     not_busy.set()
 
 
