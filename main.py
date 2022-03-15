@@ -561,6 +561,7 @@ def download_media(
             file = Path(name)
             image.save(file)
             files.append(file)
+    return files
 
 def send_error(update: Update, text: str, **kwargs) -> Message:
     """Reply to current message with error
