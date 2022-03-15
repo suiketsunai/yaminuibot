@@ -1148,7 +1148,7 @@ def command_style(update: Update, _) -> None:
             style = f"[Artwork \\| Author]({link})"
         case _:
             style = "Unknown"
-    send_reply(update, f"_Style has been changed to_\\:\n\n{style}\\")
+    send_reply(update, f"_Style has been changed to_\\:\n\n{style}")
     not_busy.set()
 
 
