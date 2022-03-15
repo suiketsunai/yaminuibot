@@ -1274,7 +1274,10 @@ def universal(update: Update, context: CallbackContext) -> None:
                         s.add(db.ArtWork(**artwork, forwarded_channel=c))
                         s.commit()
                     if data["reply_mode"]:
-                        send_reply(update, f"Forwarded\\! {esc(link.link)}")
+                        send_reply(
+                            update,
+                            f"Forwarded\\!\n{esc(link.link)}",
+                        )
                     if data["media_mode"]:
                         send_media_doc(
                             context,
