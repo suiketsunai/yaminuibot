@@ -436,6 +436,7 @@ def send_media_group(
     info: dict,
     *,
     order: list[int] = None,
+    style: int = None,
     **kwargs,
 ):
     if order:
@@ -443,7 +444,20 @@ def send_media_group(
     else:
         limit = len(info["links"]) if len(info["links"]) <= 10 else 10
         media = [InputMediaPhoto(info["thumbs"][i]) for i in range(limit)]
-    media[0].caption = esc(info["link"])
+    caption = ""
+    match style:
+        case db.IMAGE_LINK:
+            caption = esc(info["link"])
+        case db.IMAGE_INFO_LINK:
+            caption = esc(f'{info["desc"]} | {info["user"]}\n{info["link"]}')
+        case db.INFO_LINK:
+            return context.bot.send_message(
+                text=esc(f'{info["desc"]} | {info["user"]}\n{info["link"]}')
+                **kwargs,
+            )
+        case _:
+            caption = esc(info["link"])
+    media[0].caption = caption
     media[0].parse_mode = ParseMode.MARKDOWN_V2
     return context.bot.send_media_group(
         media=media,
@@ -737,6 +751,7 @@ def get_user_data(update: Update):
                 "forward_mode": u.forward_mode,
                 "reply_mode": u.reply_mode,
                 "media_mode": u.media_mode,
+                "pixiv_style": u.pixiv_style,
                 "last_info": u.last_info,
             }
             if u.forward_mode:
@@ -1107,11 +1122,11 @@ def command_style(update: Update, _) -> None:
         u.pixiv_style = new_style
         s.commit()
     match new_style:
-        case 0:
+        case db.IMAGE_LINK:
             style = "\\[ `Image(s)` \\]\n\nLink"
-        case 1:
+        case db.IMAGE_INFO_LINK:
             style = "\\[ `Image(s)` \\]\n\nArtwork \\| Author\nLink"
-        case 2:
+        case db.INFO_LINK:
             style = "Artwork \\| Author\nLink"
     send_reply(update, f"Style has been changed to\\:\n\n{style}\\.")
     not_busy.set()
@@ -1285,6 +1300,7 @@ def universal(update: Update, context: CallbackContext) -> None:
                             if post := send_media_group(
                                 context,
                                 art._asdict(),
+                                style=data["pixiv_style"],
                                 chat_id=data["channel_id"],
                             ):
                                 with Session(engine) as s:
@@ -1338,6 +1354,7 @@ def universal(update: Update, context: CallbackContext) -> None:
                 context,
                 data["last_info"],
                 order=ids,
+                style=data["pixiv_style"],
                 chat_id=data["channel_id"],
             )
             if post:
@@ -1365,6 +1382,7 @@ def universal(update: Update, context: CallbackContext) -> None:
                     context,
                     data["last_info"],
                     order=ids,
+                    style=data["pixiv_style"],
                     reply_to_message_id=mes.message_id,
                     chat_id=mes.chat_id,
                 )
