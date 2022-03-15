@@ -1331,7 +1331,11 @@ def universal(update: Update, context: CallbackContext) -> None:
                                 download_media(art._asdict())
                         continue
                     if link.type == db.PIXIV:
-                        if len(art.links) == 1:
+                        if (
+                            len(art.links) == 1
+                            or data["pixiv_style"] == db.INFO_LINK
+                            or data["pixiv_style"] == db.INFO_EMBED_LINK
+                        ):
                             if post := send_media_group(
                                 context,
                                 art._asdict(),
@@ -1513,10 +1517,15 @@ def answer_query(update: Update, context: CallbackContext) -> None:
                 download_media(art._asdict())
         result = "`\\[` *POST HAS BEEN POSTED\\.* `\\]`"
     elif art.type == db.PIXIV:
-        if len(art.links) == 1:
+        if (
+            len(art.links) == 1
+            or data["pixiv_style"] == db.INFO_LINK
+            or data["pixiv_style"] == db.INFO_EMBED_LINK
+        ):
             if post := send_media_group(
                 context,
                 art._asdict(),
+                style=data["pixiv_style"],
                 chat_id=data["channel_id"],
             ):
                 with Session(engine) as s:
