@@ -1205,11 +1205,7 @@ def universal(update: Update, context: CallbackContext) -> None:
                     if not (art := get_pixiv_links(link.id)):
                         send_error(update, "Couldn't get this content\\!")
                         return
-                    elif (
-                        len(art.links) == 1
-                        or data["pixiv_style"] == db.INFO_LINK
-                        or data["pixiv_style"] == db.INFO_EMBED_LINK
-                    ):
+                    elif len(art.links) == 1:
                         if data["reply_mode"]:
                             send_media_group(
                                 context,
