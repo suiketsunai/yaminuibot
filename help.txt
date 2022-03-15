@@ -1,4 +1,4 @@
-\[ `HELP v\.3\.0` \]
+\[ `HELP v\.3\.1` *\:* `2022\.03\.15` \]
 
 /help — show this very message\.
 
@@ -20,7 +20,7 @@ For now, only *the first one* found will be parsed\.
 
 \[ `OTHER COMMANDS` \]
 
-/style \[`temporarily disabled`\] — cycle pixiv post styles\. Only *3 styles* are available right now\.
+/style — cycle pixiv post styles\. Only *3 styles* are available right now\.
 
 /cancel — cancel current operation\. *Use it in cases when you want to shut this bot up*\.
 
