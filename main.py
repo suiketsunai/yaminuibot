@@ -1441,7 +1441,7 @@ def universal(update: Update, context: CallbackContext) -> None:
                     )
                     send_reply(
                         update,
-                        f"Posted\\!\n{esc(art.link)}",
+                        f'Posted\\!\n{esc(data["last_info"]["link"])}',
                     )
                 if int(os.environ["USER_ID"]) == chat_id:
                     download_media(data["last_info"], order=ids)
