@@ -16,6 +16,6 @@ form = "%(asctime)s > %(name)s [%(levelname)s]: %(message)s"
 # date format
 date = "%Y-%m-%d.%H-%M-%S"
 # folder path
-path = ".log"
+path = "log"
 # prefix for log file
 pref = "log."
