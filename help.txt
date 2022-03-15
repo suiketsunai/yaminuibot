@@ -1,4 +1,4 @@
-\[ `HELP v\.3\.1` *\:* `2022\.03\.15` \]
+\[ `HELP v\.4\.0` *\:* `2022\.03\.15` \]
 
 /help — show this very message\.
 
@@ -8,7 +8,7 @@ Then, in this mode you should forward a message from __*your channel*__ \(*do no
 
 _*Any text message*_ — bot will ignore it, unless there's a twitter or pixiv link in it, that could be parsed\.
 
-For now, only *the first one* found will be parsed\.
+If you send _*several*_ links at once in one message, *all twitter links will be parsed*, but __*pixiv links will not*__\.
 
 \[ `TOGGLES` \]
 
