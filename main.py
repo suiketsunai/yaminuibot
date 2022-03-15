@@ -1283,7 +1283,7 @@ def universal(update: Update, context: CallbackContext) -> None:
                                 )
                                 s.commit()
                             if data["reply_mode"]:
-                                send_reply(update, f"Sent\\! {esc(art.link)}")
+                                send_reply(update, f"Posted\\! {esc(art.link)}")
                             if data["media_mode"]:
                                 send_media_doc(
                                     context,
@@ -1316,8 +1316,15 @@ def universal(update: Update, context: CallbackContext) -> None:
                                     )
                                     s.commit()
                                 if data["reply_mode"]:
+                                    send_media_group(
+                                        context,
+                                        art._asdict(),
+                                        style=data["pixiv_style"],
+                                        reply_to_message_id=mes.message_id,
+                                        chat_id=chat_id,
+                                    )
                                     send_reply(
-                                        update, f"Sent\\! {esc(art.link)}"
+                                        update, f"Posted\\! {esc(art.link)}"
                                     )
                                 if int(os.environ["USER_ID"]) == chat_id:
                                     download_media(art._asdict())
@@ -1377,6 +1384,19 @@ def universal(update: Update, context: CallbackContext) -> None:
                         )
                     )
                     s.commit()
+                if data["reply_mode"]:
+                    send_media_group(
+                        context,
+                        data["last_info"],
+                        order=ids,
+                        style=data["pixiv_style"],
+                        reply_to_message_id=mes.message_id,
+                        chat_id=chat_id,
+                    )
+                    send_reply(update, f"Posted\\! {esc(art.link)}")
+                if int(os.environ["USER_ID"]) == chat_id:
+                    download_media(data["last_info"], order=ids)
+        else:
             if data["reply_mode"]:
                 send_media_group(
                     context,
@@ -1384,16 +1404,15 @@ def universal(update: Update, context: CallbackContext) -> None:
                     order=ids,
                     style=data["pixiv_style"],
                     reply_to_message_id=mes.message_id,
-                    chat_id=mes.chat_id,
+                    chat_id=chat_id,
                 )
-            if int(os.environ["USER_ID"]) == chat_id:
-                download_media(data["last_info"], order=ids)
-        else:
+                send_reply(update, f"Sending files\\.\\.\\.")
             send_media_doc(
                 context,
                 data["last_info"],
                 order=ids,
-                chat_id=mes.chat_id,
+                reply_to_message_id=mes.message_id,
+                chat_id=chat_id,
             )
             if int(os.environ["USER_ID"]) == chat_id:
                 download_media(data["last_info"], order=ids)
@@ -1446,7 +1465,7 @@ def answer_query(update: Update, context: CallbackContext) -> None:
                 )
                 s.commit()
             if data["reply_mode"]:
-                send_reply(update, f"Sent\\! {esc(art.link)}")
+                send_reply(update, f"Posted\\! {esc(art.link)}")
             if data["media_mode"]:
                 send_media_doc(
                     context,
@@ -1476,7 +1495,14 @@ def answer_query(update: Update, context: CallbackContext) -> None:
                     )
                     s.commit()
                 if data["reply_mode"]:
-                    send_reply(update, f"Sent\\! {esc(art.link)}")
+                    send_media_group(
+                        context,
+                        data["last_info"],
+                        style=data["pixiv_style"],
+                        reply_to_message_id=update.effective_message.message_id,
+                        chat_id=chat_id,
+                    )
+                    send_reply(update, f"Posted\\! {esc(art.link)}")
                 result = "`\\[` *POST HAS BEEN POSTED\\.* `\\]`"
         else:
             with Session(engine) as s:
