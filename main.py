@@ -452,7 +452,7 @@ def send_media_group(
             caption = esc(f'{info["desc"]} | {info["user"]}\n{info["link"]}')
         case db.INFO_LINK:
             return context.bot.send_message(
-                text=esc(f'{info["desc"]} | {info["user"]}\n{info["link"]}')
+                text=esc(f'{info["desc"]} | {info["user"]}\n{info["link"]}'),
                 **kwargs,
             )
         case _:
