@@ -898,7 +898,7 @@ def get_twitter_links(tweet_id: int) -> ArtWorkMedia:
     )
     log.debug("Response: %s.", res)
     if (error := res.errors):
-        log.warning("%s: %s", error[0]["title"], error[0]["detail"])
+        log.error("%s: %s", error[0]["title"], error[0]["detail"])
         return None
     media = [media for media in res.includes["media"]]
     user = res.includes["users"][0]
