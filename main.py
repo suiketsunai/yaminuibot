@@ -81,8 +81,6 @@ config = tomli.load(Path(os.environ["PATH_SETTINGS"]).open("rb"))
 # session settings
 engine = create_engine(
     os.environ["SB_CNT"].format(password=os.environ["SB_PSW"]),
-    echo=True,
-    echo_pool="debug",
     future=True,
 )
 
@@ -101,6 +99,10 @@ def setup_logging():
         format=config["log"]["form"],
         level=logging.getLevelName(config["log"]["level"]),
     )
+    # sqlalchemy logging
+    for name, module in config["log"]["sqlalchemy"].items():
+        if module["enable"]:
+            logging.getLogger(f"sqlalchemy.{name}").setLevel(module["level"])
     # setup logging to file
     if config["log"]["file"]["enable"]:
         log.info("Logging to file enabled.")
