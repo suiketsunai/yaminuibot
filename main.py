@@ -492,21 +492,15 @@ def send_media_doc(
     order: list[int] = None,
     **kwargs,
 ) -> Message:
-    if media_filter:
-        if info["media"] not in media_filter:
-            return
-    if order:
-        for index in order:
-            context.bot.send_document(
-                document=info["links"][index - 1],
-                **kwargs,
-            )
-    else:
-        for link in info["links"]:
-            context.bot.send_document(
-                document=link,
-                **kwargs,
-            )
+    if media_filter and info["media"] not in media_filter:
+        return
+    for file in download_media(info, full=True, order=order):
+        context.bot.send_document(
+            document=file.read_bytes(),
+            filename=file.name,
+            **kwargs,
+        )
+        file.unlink()
 
 
 def download_media(
