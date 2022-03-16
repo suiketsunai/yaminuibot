@@ -97,16 +97,17 @@ def setup_logging():
     # set basic config to logger
     logging.basicConfig(
         format=config["log"]["form"],
-        level=logging.getLevelName(config["log"]["level"]),
+        level=config["log"]["level"],
     )
     # sqlalchemy logging
     for name, module in config["log"]["sqlalchemy"].items():
         if module["enable"]:
             logging.getLogger(f"sqlalchemy.{name}").setLevel(module["level"])
     # setup logging to file
-    if config["log"]["file"]["enable"]:
+    file_log = config["log"]["file"]
+    if file_log["enable"]:
         log.info("Logging to file enabled.")
-        log_dir = file_dir / config["log"]["file"]["path"]
+        log_dir = file_dir / file_log["path"]
         if not log_dir.is_dir():
             log.warning("Log directory doesn't exist.")
             try:
@@ -117,14 +118,14 @@ def setup_logging():
                 log.error("Exception occured: %s", ex)
                 log.info("Can't execute program.")
                 quit()
-        log_date = date_run.strftime(config["log"]["file"]["date"])
-        log_name = f'{config["log"]["file"]["pref"]}{log_date}.log'
+        log_date = date_run.strftime(file_log["date"])
+        log_name = f'{file_log["pref"]}{log_date}.log'
         log_file = log_dir / log_name
         log.info("Logging to file: '%s'.", log_name)
         # add file handler
         fh = logging.FileHandler(log_file, encoding="utf-8")
-        fh.setFormatter(logging.Formatter(config["log"]["file"]["form"]))
-        fh.setLevel(logging.getLevelName(config["log"]["file"]["level"]))
+        fh.setFormatter(logging.Formatter(file_log["form"]))
+        fh.setLevel(file_log["level"])
         logging.getLogger().addHandler(fh)
     else:
         log.info("Logging to file disabled.")
@@ -899,7 +900,7 @@ def get_twitter_links(tweet_id: int) -> ArtWorkMedia:
         ],
     )
     log.debug("Response: %s.", res)
-    if (error := res.errors):
+    if error := res.errors:
         log.error("%s: %s", error[0]["title"], error[0]["detail"])
         return None
     media = [media for media in res.includes["media"]]
