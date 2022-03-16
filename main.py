@@ -897,40 +897,39 @@ def get_twitter_links(tweet_id: int) -> ArtWorkMedia:
         ],
     )
     log.debug("Response: %s.", res)
-    error = res.errors
-    if error:
-        log.warning("%s: %s", error["title"], error["detail"])
+    if (error := res.errors):
+        log.warning("%s: %s", error[0]["title"], error[0]["detail"])
+        return None
+    media = [media for media in res.includes["media"]]
+    user = res.includes["users"][0]
+    kind = media[0].type
+    if kind == "photo":
+        links = get_twitter_media(tweet_id, kind, [e.url for e in media])
     else:
-        media = [media for media in res.includes["media"]]
-        user = res.includes["users"][0]
-        kind = media[0].type
-        if kind == "photo":
-            links = get_twitter_media(tweet_id, kind, [e.url for e in media])
-        else:
-            links = get_twitter_media(tweet_id, kind)
-        if not links[0]:
-            log.warning("Unexpected error occured: no links.")
-            return None
-        else:
-            text = res.data.text
-            for url in res.data.entities["urls"][:-1]:
-                text = text.replace(url["url"], url["expanded_url"])
-            text = text.replace(res.data.entities["urls"][-1]["url"], "")
-            return ArtWorkMedia(
-                link_dict["twitter"]["link"].format(
-                    id=tweet_id, author=user.username
-                ),
-                db.TWITTER,
-                tweet_id,
-                kind,
-                user.id,
-                user.name,
-                user.username,
-                res.data.created_at,
-                text.strip(),
-                links[0],
-                links[1],
-            )
+        links = get_twitter_media(tweet_id, kind)
+    if not links[0]:
+        log.warning("Unexpected error occured: no links.")
+        return None
+    else:
+        text = res.data.text
+        for url in res.data.entities["urls"][:-1]:
+            text = text.replace(url["url"], url["expanded_url"])
+        text = text.replace(res.data.entities["urls"][-1]["url"], "")
+        return ArtWorkMedia(
+            link_dict["twitter"]["link"].format(
+                id=tweet_id, author=user.username
+            ),
+            db.TWITTER,
+            tweet_id,
+            kind,
+            user.id,
+            user.name,
+            user.username,
+            res.data.created_at,
+            text.strip(),
+            links[0],
+            links[1],
+        )
 
 
 ################################################################################
