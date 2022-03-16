@@ -513,8 +513,9 @@ def download_media(
     info: dict,
     *,
     full: bool = True,
+    down: bool = False,
     order: list[int] = None,
-) -> None:
+) -> list[Path]|None:
     if info["type"] == db.PIXIV:
         headers = {
             "user-agent": "PixivIOSApp/7.13.3 (iOS 14.6; iPhone13,2)",
@@ -546,24 +547,25 @@ def download_media(
             log.error("Couldn't get name or format: %s.", link)
             continue
         name = reg.group("name") + "." + reg.group("format")
-        if full:
-            if os.environ["GG_URL"]:
-                log.info("Uploading file '%s'...", name)
-                r = requests.post(
-                    url=os.environ["GG_URL"],
-                    params={"name": name},
-                    data=base64.urlsafe_b64encode(file.content),
-                )
-                if r.json()["ok"]:
-                    log.info("Done uploading file '%s'.", name)
-                else:
-                    log.info("File '%s' already exists.", name)
-        else:
-            image = Image.open(io.BytesIO(file.content))
+        if down and os.environ["GG_URL"]:
+            log.info("Uploading file '%s'...", name)
+            r = requests.post(
+                url=os.environ["GG_URL"],
+                params={"name": name},
+                data=base64.urlsafe_b64encode(file.content),
+            )
+            if r.json()["ok"]:
+                log.info("Done uploading file '%s'.", name)
+            else:
+                log.info("File '%s' already exists.", name)
+            continue
+        image_file = Path(name)
+        image_file.write_bytes(file.content)
+        if not full:
+            image = Image.open(image_file)
             image.thumbnail([1280, 1280])
-            file = Path(name)
-            image.save(file)
-            files.append(file)
+            image.save(image_file)
+        files.append(image_file)
     return files
 
 
@@ -1220,7 +1222,7 @@ def universal(update: Update, context: CallbackContext) -> None:
                         chat_id=mes.chat_id,
                     )
                     if int(os.environ["USER_ID"]) == chat_id:
-                        download_media(art._asdict())
+                        download_media(art._asdict(), down=True)
                     continue
                 if link.type == db.PIXIV:
                     if not (art := get_pixiv_links(link.id)):
@@ -1243,7 +1245,7 @@ def universal(update: Update, context: CallbackContext) -> None:
                             chat_id=mes.chat_id,
                         )
                         if int(os.environ["USER_ID"]) == chat_id:
-                            download_media(art._asdict())
+                            download_media(art._asdict(), down=True)
                         continue
                     else:
                         with Session(engine) as s:
@@ -1308,7 +1310,7 @@ def universal(update: Update, context: CallbackContext) -> None:
                             reply_to_message_id=post.message_id,
                         )
                     if int(os.environ["USER_ID"]) == chat_id:
-                        download_media(get_links(link)._asdict())
+                        download_media(get_links(link)._asdict(), down=True)
             else:
                 for link in links:
                     is_orig = check_original(link.id, link.type)
@@ -1355,7 +1357,7 @@ def universal(update: Update, context: CallbackContext) -> None:
                                     reply_to_message_id=post.message_id,
                                 )
                             if int(os.environ["USER_ID"]) == chat_id:
-                                download_media(art._asdict())
+                                download_media(art._asdict(), down=True)
                         continue
                     if link.type == db.PIXIV:
                         if (
@@ -1394,7 +1396,7 @@ def universal(update: Update, context: CallbackContext) -> None:
                                         f"Posted\\!\n{esc(art.link)}",
                                     )
                                 if int(os.environ["USER_ID"]) == chat_id:
-                                    download_media(art._asdict())
+                                    download_media(art._asdict(), down=True)
                         else:
                             with Session(engine) as s:
                                 u = s.get(db.User, mes.chat_id)
@@ -1465,7 +1467,7 @@ def universal(update: Update, context: CallbackContext) -> None:
                         f'Posted\\!\n{esc(data["last_info"]["link"])}',
                     )
                 if int(os.environ["USER_ID"]) == chat_id:
-                    download_media(data["last_info"], order=ids)
+                    download_media(data["last_info"], order=ids, down=True)
         else:
             if data["reply_mode"]:
                 send_media_group(
@@ -1485,7 +1487,7 @@ def universal(update: Update, context: CallbackContext) -> None:
                 chat_id=chat_id,
             )
             if int(os.environ["USER_ID"]) == chat_id:
-                download_media(data["last_info"], order=ids)
+                download_media(data["last_info"], order=ids, down=True)
         with Session(engine) as s:
             u = s.get(db.User, mes.chat_id)
             u.last_info = None
@@ -1548,7 +1550,7 @@ def answer_query(update: Update, context: CallbackContext) -> None:
                     reply_to_message_id=post.message_id,
                 )
             if int(os.environ["USER_ID"]) == chat_id:
-                download_media(art._asdict())
+                download_media(art._asdict(), down=True)
         result = "`\\[` *POST HAS BEEN POSTED\\.* `\\]`"
     elif art.type == db.PIXIV:
         if (
