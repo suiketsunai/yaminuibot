@@ -1274,6 +1274,8 @@ def universal(update: Update, context: CallbackContext) -> None:
                     "type": link.type,
                     "channel": data["channel"],
                 }
+                if art := get_links(link):
+                    artwork["files"] = extract_media_ids(art._asdict())
                 if post := forward(update, data["channel_id"]):
                     artwork.update(
                         {
@@ -1296,15 +1298,17 @@ def universal(update: Update, context: CallbackContext) -> None:
                             f"Forwarded\\!\n{esc(link.link)}",
                         )
                     if data["media_mode"]:
+                        if not art:
+                            send_error(update, "Couldn't get this content\\!")
                         send_media_doc(
                             context,
-                            get_links(link)._asdict(),
+                            art._asdict(),
                             media_filter=["video", "animated_gif"],
                             chat_id=data["channel_id"],
                             reply_to_message_id=post.message_id,
                         )
                     if int(os.environ["USER_ID"]) == chat_id:
-                        download_media(get_links(link)._asdict(), down=True)
+                        download_media(art._asdict(), down=True)
             else:
                 for link in links:
                     is_orig = check_original(link.id, link.type)
