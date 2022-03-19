@@ -509,7 +509,7 @@ def download_media(
     full: bool = True,
     down: bool = False,
     order: list[int] = None,
-) -> list[Path]|None:
+) -> list[Path] | None:
     if info["type"] == db.PIXIV:
         headers = {
             "user-agent": "PixivIOSApp/7.13.3 (iOS 14.6; iPhone13,2)",
@@ -1202,7 +1202,7 @@ def universal(update: Update, context: CallbackContext) -> None:
                 if link.type == db.TWITTER:
                     if not (art := get_twitter_links(link.id)):
                         send_error(update, "Couldn't get this content\\!")
-                        return
+                        continue
                     if data["reply_mode"]:
                         send_post(
                             context,
@@ -1221,7 +1221,7 @@ def universal(update: Update, context: CallbackContext) -> None:
                 if link.type == db.PIXIV:
                     if not (art := get_pixiv_links(link.id)):
                         send_error(update, "Couldn't get this content\\!")
-                        return
+                        continue
                     elif len(art.links) == 1:
                         if data["reply_mode"]:
                             send_media_group(
