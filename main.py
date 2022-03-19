@@ -165,7 +165,7 @@ link_dict = {
                 (?:www\.)?
                 (?:twitter\.com\/)
                 (?P<author>.+?)\/
-                (?:status\/)
+                (?:status(?:es)?\/)
             )
             (?P<id>\d+)
         """,
