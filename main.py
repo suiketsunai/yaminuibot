@@ -8,7 +8,6 @@ import logging
 from pathlib import Path
 from datetime import datetime
 from functools import partial
-from collections import namedtuple
 
 # working with env
 from dotenv import load_dotenv
@@ -131,96 +130,6 @@ def setup_logging():
     else:
         log.info("Logging to file disabled.")
 
-
-################################################################################
-# named tuples
-################################################################################
-
-Link = namedtuple("Link", ["type", "link", "id"])
-ArtWorkMedia = namedtuple(
-    "ArtWorkMedia",
-    [
-        "link",
-        "type",
-        "id",
-        "media",
-        "user_id",
-        "user",
-        "username",
-        "date",
-        "desc",
-        "links",
-        "thumbs",
-    ],
-)
-
-################################################################################
-# hardcode
-################################################################################
-
-# link dictionary
-link_dict = {
-    "twitter": {
-        "re": r"""(?x)
-            (?:
-                (?:www\.)?
-                (?:twitter\.com\/)
-                (?P<author>.+?)\/
-                (?:status(?:es)?\/)
-            )
-            (?P<id>\d+)
-        """,
-        "link": "https://twitter.com/{author}/status/{id}",
-        "full": "https://pbs.twimg.com/media/{id}?format={format}&name=orig",
-        "type": LinkType.TWITTER,
-    },
-    "pixiv": {
-        "re": r"""(?x)
-            (?:
-                (?:www\.)?
-                (?:pixiv\.net\/)
-                (?:\w{2}\/)?
-                (?:artworks\/)
-            )
-            (?P<id>\d+)
-        """,
-        "link": "https://www.pixiv.net/artworks/{id}",
-        "type": LinkType.PIXIV,
-    },
-}
-
-_switch = {
-    True: "enabled",
-    False: "disabled",
-}
-
-# states
-states = (CHANNEL,) = map(chr, range(1))
-
-# fake headers
-fake_headers = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:97.0) Gecko/20100101 Firefox/97.0",
-    "Accept": "*/*",
-    "Accept-Language": "en-US,en;q=0.5",
-}
-
-# pixiv tokens
-pixiv_api = {
-    "ACCESS_TOKEN": os.environ["PX_ACCESS"],
-    "REFRESH_TOKEN": os.environ["PX_REFRESH"],
-}
-
-# pixiv regex
-pixiv_regex = r"^(?:\s*\d+\s*)+$"
-
-# telegram deep linking
-telegram_link = "t.me/c/{cid}/{post_id}"
-
-# filename pattern
-file_pattern = r".*\/(?P<name>.*?)((\?.*format\=)|(\.))(?P<format>\w+).*$"
-
-# twitter link id
-twi_id = r"(?:.*\/(?P<id>.+)(?:\.|\?f))"
 
 ################################################################################
 # file operations functions
@@ -378,8 +287,17 @@ def migrate_db() -> None:
 
 
 ################################################################################
-# telegram helper function
+# telegram bot helpers section
 ################################################################################
+
+# states
+states = (CHANNEL,) = map(chr, range(1))
+
+# helper dictionary
+_switch = {
+    True: "enabled",
+    False: "disabled",
+}
 
 # escaping markdown v2
 esc = partial(escape_markdown, version=2)
