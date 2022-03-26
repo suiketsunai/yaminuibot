@@ -851,7 +851,7 @@ def universal(update: Update, context: CallbackContext) -> None:
             links = [link for link in links if link.type == LinkType.TWITTER]
         if not data["forward_mode"]:
             for link in links:
-                if not (art := get_links(link.id)):
+                if not (art := get_links(link)):
                     send_error(update, "Couldn't get this content\\!")
                     continue
                 art = art._asdict()
