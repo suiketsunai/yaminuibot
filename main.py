@@ -68,7 +68,10 @@ import tweepy
 from PIL import Image
 
 # database models
-import db.models as db
+from db import User, Channel, ArtWork
+
+# import pixiv styles and link types
+from extra import *
 
 # current timestamp & this file directory
 date_run = datetime.now()
@@ -171,7 +174,7 @@ link_dict = {
         """,
         "link": "https://twitter.com/{author}/status/{id}",
         "full": "https://pbs.twimg.com/media/{id}?format={format}&name=orig",
-        "type": db.TWITTER,
+        "type": LinkType.TWITTER,
     },
     "pixiv": {
         "re": r"""(?x)
@@ -184,7 +187,7 @@ link_dict = {
             (?P<id>\d+)
         """,
         "link": "https://www.pixiv.net/artworks/{id}",
-        "type": db.PIXIV,
+        "type": LinkType.PIXIV,
     },
 }
 
@@ -231,9 +234,9 @@ twi_id = r"(?:.*\/(?P<id>.+)(?:\.|\?f))"
 
 
 def extract_media_ids(art: dict) -> list[str]:
-    if art["type"] == db.TWITTER:
+    if art["type"] == LinkType.TWITTER:
         return [re.search(twi_id, link).group("id") for link in art["links"]]
-    if art["type"] == db.PIXIV:
+    if art["type"] == LinkType.PIXIV:
         return [str(art["id"])]
     return None
 
@@ -273,9 +276,9 @@ def dumper(table, filename: str) -> None:
 
 def dump_db() -> None:
     """Dump database as it is"""
-    dumper(db.User, "users")
-    dumper(db.Channel, "channels")
-    dumper(db.ArtWork, "artworks")
+    dumper(User, "users")
+    dumper(Channel, "channels")
+    dumper(ArtWork, "artworks")
 
 
 def formatter(query: str) -> list[Link]:
@@ -325,16 +328,16 @@ def migrate_db() -> None:
     # migrate all users and channels
     with Session(engine) as s:
         for user in users:
-            s.add(db.User(**user))
+            s.add(User(**user))
         s.commit()
 
         for channel in channels:
-            s.add(db.Channel(**channel))
+            s.add(Channel(**channel))
         s.commit()
     # get directories
     dirs = [cid for cid in src.iterdir() if cid.is_dir()]
     with Session(engine) as s:
-        chans = {str(channel.cid): channel for channel in s.query(db.Channel)}
+        chans = {str(channel.cid): channel for channel in s.query(Channel)}
     # migrate all artworks
     for path in dirs:
         channel = chans[path.name]
@@ -353,17 +356,17 @@ def migrate_db() -> None:
                             {
                                 "is_forwarded": True,
                                 "is_original": False,
-                                "forwarded_channel": s.query(db.Channel)
-                                .filter(db.Channel.name == f)
+                                "forwarded_channel": s.query(Channel)
+                                .filter(Channel.name == f)
                                 .first(),
                             }
                         )
-                    s.add(db.ArtWork(**data))
+                    s.add(ArtWork(**data))
             channel.last_post = messages[-1]["id"]
             s.commit()
     # find all first-posted artworks
     with Session(engine) as s:
-        artl, artr = aliased(db.ArtWork), aliased(db.ArtWork)
+        artl, artr = aliased(ArtWork), aliased(ArtWork)
         q = (
             s.query(artr)
             .join(
@@ -448,21 +451,21 @@ def send_media_group(
 ):
     caption = ""
     match style:
-        case db.IMAGE_LINK:
+        case PixivStyle.IMAGE_LINK:
             caption = esc(info["link"])
-        case db.IMAGE_INFO_LINK:
+        case PixivStyle.IMAGE_INFO_LINK:
             caption = esc(f'{info["desc"]} | {info["user"]}\n{info["link"]}')
-        case db.IMAGE_INFO_EMBED_LINK:
+        case PixivStyle.IMAGE_INFO_EMBED_LINK:
             temp = esc(f'{info["desc"]} | {info["user"]}\n')
             caption = f'[{temp}]({esc(info["link"])})'
-        case db.INFO_LINK:
+        case PixivStyle.INFO_LINK:
             caption = esc(f'{info["desc"]} | {info["user"]}\n{info["link"]}')
             return context.bot.send_message(
                 text=caption,
                 parse_mode=ParseMode.MARKDOWN_V2,
                 **kwargs,
             )
-        case db.INFO_EMBED_LINK:
+        case PixivStyle.INFO_EMBED_LINK:
             temp = esc(f'{info["desc"]} | {info["user"]}\n')
             caption = f'[{temp}]({esc(info["link"])})'
             return context.bot.send_message(
@@ -510,7 +513,7 @@ def download_media(
     down: bool = False,
     order: list[int] = None,
 ) -> list[Path] | None:
-    if info["type"] == db.PIXIV:
+    if info["type"] == LinkType.PIXIV:
         headers = {
             "user-agent": "PixivIOSApp/7.13.3 (iOS 14.6; iPhone13,2)",
             "app-os-version": "14.6",
@@ -622,7 +625,7 @@ def toggler(update: Update, attr: str) -> bool:
         bool: new state
     """
     with Session(engine) as s:
-        u = s.get(db.User, update.effective_chat.id)
+        u = s.get(User, update.effective_chat.id)
         state = getattr(u, attr)
         setattr(u, attr, not state)
         s.commit()
@@ -638,7 +641,7 @@ def channel_check(update: Update, context: CallbackContext) -> int:
             send_error(update, "This message is from a supergroup\\.")
         else:
             with Session(engine) as s:
-                if (c := s.get(db.Channel, channel.id)) and c.admin:
+                if (c := s.get(Channel, channel.id)) and c.admin:
                     send_error(update, "This channel is *already* owned\\.")
                 else:
                     send_reply(
@@ -665,7 +668,7 @@ def channel_check(update: Update, context: CallbackContext) -> int:
                             in ["creator", "administrator"]
                         ):
                             # get current user
-                            u = s.get(db.User, update.effective_chat.id)
+                            u = s.get(User, update.effective_chat.id)
                             # remove old channel
                             if c:
                                 # channel already exist
@@ -674,7 +677,7 @@ def channel_check(update: Update, context: CallbackContext) -> int:
                                 # channel doesn't exist
                                 u.channel = None
                                 # create new channel
-                                db.Channel(
+                                Channel(
                                     id=channel.id,
                                     name=channel.title,
                                     link=channel.username,
@@ -729,13 +732,12 @@ def get_file_size(link: str, session: requests.Session = None) -> int:
 
 
 def get_links(media: Link) -> ArtWorkMedia:
-    if media.type == db.TWITTER:
+    if media.type == LinkType.TWITTER:
         return get_twitter_links(media.id)
-    elif media.type == db.PIXIV:
+    if media.type == LinkType.PIXIV:
         return get_pixiv_links(media.id)
-    else:
-        log.warning("Error: Unknown media type: %s.", media.type)
-        return None
+    log.warning("Error: Unknown media type: %s.", media.type)
+    return None
 
 
 def unduplicate(arr):
@@ -752,9 +754,9 @@ def unduplicate(arr):
 def check_original(aid: int, type: int) -> bool:
     with Session(engine) as s:
         return not bool(
-            s.query(db.ArtWork)
-            .where(db.ArtWork.aid == aid)
-            .where(db.ArtWork.type == type)
+            s.query(ArtWork)
+            .where(ArtWork.aid == aid)
+            .where(ArtWork.type == type)
             .count()
         )
 
@@ -764,11 +766,11 @@ def get_other_links(aid: int, type: int) -> list[str]:
         return [
             telegram_link.format(**item)
             for item in (
-                s.query(db.ArtWork.post_id, db.Channel.cid)
-                .where(db.ArtWork.channel_id == db.Channel.id)
-                .where(db.ArtWork.aid == aid)
-                .where(db.ArtWork.type == type)
-                .order_by(db.ArtWork.post_date.asc())
+                s.query(ArtWork.post_id, Channel.cid)
+                .where(ArtWork.channel_id == Channel.id)
+                .where(ArtWork.aid == aid)
+                .where(ArtWork.type == type)
+                .order_by(ArtWork.post_date.asc())
                 .all()
             )
         ]
@@ -777,7 +779,7 @@ def get_other_links(aid: int, type: int) -> list[str]:
 def get_user_data(update: Update):
     with Session(engine) as s:
         not_busy.wait()
-        if u := s.get(db.User, update.effective_chat.id):
+        if u := s.get(User, update.effective_chat.id):
             data = {
                 "forward_mode": u.forward_mode,
                 "reply_mode": u.reply_mode,
@@ -918,7 +920,7 @@ def get_twitter_links(tweet_id: int) -> ArtWorkMedia:
             link_dict["twitter"]["link"].format(
                 id=tweet_id, author=user.username
             ),
-            db.TWITTER,
+            LinkType.TWITTER,
             tweet_id,
             kind,
             user.id,
@@ -957,7 +959,7 @@ def get_pixiv_media(illust: dict) -> ArtWorkMedia:
         ]
     return ArtWorkMedia(
         link_dict["pixiv"]["link"].format(id=illust.id),
-        db.PIXIV,
+        LinkType.PIXIV,
         illust.id,
         illust.type,  # 'ugoira' or 'illust'
         illust.user.id,
@@ -1048,9 +1050,9 @@ def command_start(update: Update, _) -> None:
     """Start the bot"""
     notify(update, command="/start")
     with Session(engine) as s:
-        if not s.get(db.User, update.effective_chat.id):
+        if not s.get(User, update.effective_chat.id):
             s.add(
-                db.User(
+                User(
                     id=update.effective_chat.id,
                     full_name=update.effective_chat.full_name,
                     nick_name=update.effective_chat.username,
@@ -1146,22 +1148,22 @@ def command_style(update: Update, _) -> None:
     not_busy.clear()
     notify(update, command="/style")
     with Session(engine) as s:
-        u = s.get(db.User, update.effective_chat.id)
+        u = s.get(User, update.effective_chat.id)
         old_style = u.pixiv_style
-        new_style = db.pixiv[(old_style + 1) % len(db.pixiv)]
+        new_style = PixivStyle.styles[(old_style + 1) % len(PixivStyle.styles)]
         u.pixiv_style = new_style
         s.commit()
     link = esc("https://www.pixiv.net/")
     match new_style:
-        case db.IMAGE_LINK:
+        case PixivStyle.IMAGE_LINK:
             style = "\\[ `Image(s)` \\]\n\nLink"
-        case db.IMAGE_INFO_LINK:
+        case PixivStyle.IMAGE_INFO_LINK:
             style = "\\[ `Image(s)` \\]\n\nArtwork \\| Author\nLink"
-        case db.IMAGE_INFO_EMBED_LINK:
+        case PixivStyle.IMAGE_INFO_EMBED_LINK:
             style = f"\\[ `Image(s)` \\]\n\n[Artwork \\| Author]({link})"
-        case db.INFO_LINK:
+        case PixivStyle.INFO_LINK:
             style = "Artwork \\| Author\nLink"
-        case db.INFO_EMBED_LINK:
+        case PixivStyle.INFO_EMBED_LINK:
             style = f"[Artwork \\| Author]({link})"
         case _:
             style = "Unknown"
@@ -1194,12 +1196,12 @@ def universal(update: Update, context: CallbackContext) -> None:
     # check for links
     if links := formatter(text):
         if len(links) > 1:
-            if any(link.type == db.PIXIV for link in links):
+            if any(link.type == LinkType.PIXIV for link in links):
                 send_error(update, "Can't process pixiv links in batch mode\\.")
-            links = [link for link in links if link.type == db.TWITTER]
+            links = [link for link in links if link.type == LinkType.TWITTER]
         if not data["forward_mode"]:
             for link in links:
-                if link.type == db.TWITTER:
+                if link.type == LinkType.TWITTER:
                     if not (art := get_twitter_links(link.id)):
                         send_error(update, "Couldn't get this content\\!")
                         continue
@@ -1218,7 +1220,7 @@ def universal(update: Update, context: CallbackContext) -> None:
                     if int(os.environ["USER_ID"]) == chat_id:
                         download_media(art._asdict(), down=True)
                     continue
-                if link.type == db.PIXIV:
+                if link.type == LinkType.PIXIV:
                     if not (art := get_pixiv_links(link.id)):
                         send_error(update, "Couldn't get this content\\!")
                         continue
@@ -1243,7 +1245,7 @@ def universal(update: Update, context: CallbackContext) -> None:
                         continue
                     else:
                         with Session(engine) as s:
-                            u = s.get(db.User, mes.chat_id)
+                            u = s.get(User, mes.chat_id)
                             u.last_info = art._asdict()
                             s.commit()
                         send_reply(
@@ -1288,9 +1290,9 @@ def universal(update: Update, context: CallbackContext) -> None:
                     with Session(engine) as s:
                         c = None
                         if getattr(mes, "forward_from_chat"):
-                            c = s.get(db.Channel, mes.forward_from_chat.id)
+                            c = s.get(Channel, mes.forward_from_chat.id)
                             log.info("Forwarded channel: '%s'.", c.name)
-                        s.add(db.ArtWork(**artwork, forwarded_channel=c))
+                        s.add(ArtWork(**artwork, forwarded_channel=c))
                         s.commit()
                     if data["reply_mode"]:
                         send_reply(
@@ -1325,7 +1327,7 @@ def universal(update: Update, context: CallbackContext) -> None:
                         "is_original": True,
                         "is_forwarded": False,
                     }
-                    if link.type == db.TWITTER:
+                    if link.type == LinkType.TWITTER:
                         if post := send_post(
                             context,
                             art._asdict(),
@@ -1333,7 +1335,7 @@ def universal(update: Update, context: CallbackContext) -> None:
                         ):
                             with Session(engine) as s:
                                 s.add(
-                                    db.ArtWork(
+                                    ArtWork(
                                         **artwork,
                                         post_id=post.message_id,
                                         post_date=post.date,
@@ -1357,11 +1359,11 @@ def universal(update: Update, context: CallbackContext) -> None:
                             if int(os.environ["USER_ID"]) == chat_id:
                                 download_media(art._asdict(), down=True)
                         continue
-                    if link.type == db.PIXIV:
+                    if link.type == LinkType.PIXIV:
                         if (
                             len(art.links) == 1
-                            or data["pixiv_style"] == db.INFO_LINK
-                            or data["pixiv_style"] == db.INFO_EMBED_LINK
+                            or data["pixiv_style"] == PixivStyle.INFO_LINK
+                            or data["pixiv_style"] == PixivStyle.INFO_EMBED_LINK
                         ):
                             if post := send_media_group(
                                 context,
@@ -1373,7 +1375,7 @@ def universal(update: Update, context: CallbackContext) -> None:
                                     if not isinstance(post, Message):
                                         post = post[0]
                                     s.add(
-                                        db.ArtWork(
+                                        ArtWork(
                                             **artwork,
                                             post_id=post.message_id,
                                             post_date=post.date,
@@ -1399,7 +1401,7 @@ def universal(update: Update, context: CallbackContext) -> None:
                                     download_media(art._asdict(), down=True)
                         else:
                             with Session(engine) as s:
-                                u = s.get(db.User, mes.chat_id)
+                                u = s.get(User, mes.chat_id)
                                 u.last_info = art._asdict()
                                 s.commit()
                             send_reply(
@@ -1449,7 +1451,7 @@ def universal(update: Update, context: CallbackContext) -> None:
                 )
                 with Session(engine) as s:
                     s.add(
-                        db.ArtWork(
+                        ArtWork(
                             **artwork,
                             files=extract_media_ids(data["last_info"]),
                         )
@@ -1491,7 +1493,7 @@ def universal(update: Update, context: CallbackContext) -> None:
             if int(os.environ["USER_ID"]) == chat_id:
                 download_media(data["last_info"], order=ids, down=True)
         with Session(engine) as s:
-            u = s.get(db.User, mes.chat_id)
+            u = s.get(User, mes.chat_id)
             u.last_info = None
             s.commit()
     else:
@@ -1522,7 +1524,7 @@ def answer_query(update: Update, context: CallbackContext) -> None:
         "is_original": False,
         "is_forwarded": False,
     }
-    if art.type == db.TWITTER:
+    if art.type == LinkType.TWITTER:
         if post := send_post(
             context,
             art._asdict(),
@@ -1530,7 +1532,7 @@ def answer_query(update: Update, context: CallbackContext) -> None:
         ):
             with Session(engine) as s:
                 s.add(
-                    db.ArtWork(
+                    ArtWork(
                         **artwork,
                         post_id=post.message_id,
                         post_date=post.date,
@@ -1554,11 +1556,11 @@ def answer_query(update: Update, context: CallbackContext) -> None:
             if int(os.environ["USER_ID"]) == chat_id:
                 download_media(art._asdict(), down=True)
         result = "`\\[` *POST HAS BEEN POSTED\\.* `\\]`"
-    elif art.type == db.PIXIV:
+    elif art.type == LinkType.PIXIV:
         if (
             len(art.links) == 1
-            or data["pixiv_style"] == db.INFO_LINK
-            or data["pixiv_style"] == db.INFO_EMBED_LINK
+            or data["pixiv_style"] == PixivStyle.INFO_LINK
+            or data["pixiv_style"] == PixivStyle.INFO_EMBED_LINK
         ):
             if post := send_media_group(
                 context,
@@ -1570,7 +1572,7 @@ def answer_query(update: Update, context: CallbackContext) -> None:
                     if not isinstance(post, Message):
                         post = post[0]
                     s.add(
-                        db.ArtWork(
+                        ArtWork(
                             **artwork,
                             post_id=post.message_id,
                             post_date=post.date,
@@ -1593,7 +1595,7 @@ def answer_query(update: Update, context: CallbackContext) -> None:
                 result = "`\\[` *POST HAS BEEN POSTED\\.* `\\]`"
         else:
             with Session(engine) as s:
-                u = s.get(db.User, update.effective_message.chat_id)
+                u = s.get(User, update.effective_message.chat_id)
                 u.last_info = art._asdict()
                 s.commit()
             send_reply(
@@ -1632,18 +1634,18 @@ def handle_post(update: Update, context: CallbackContext) -> None:
             }
             with Session(engine) as s:
                 if (
-                    s.query(db.ArtWork)
-                    .where(db.ArtWork.channel_id == update.effective_chat.id)
-                    .where(db.ArtWork.post_id == mes.message_id)
+                    s.query(ArtWork)
+                    .where(ArtWork.channel_id == update.effective_chat.id)
+                    .where(ArtWork.post_id == mes.message_id)
                     .count()
                 ):
                     log.info("Already in database. Skipping...")
                     return
                 c = None
                 if getattr(mes, "forward_from_chat"):
-                    c = s.get(db.Channel, mes.forward_from_chat.id)
+                    c = s.get(Channel, mes.forward_from_chat.id)
                     log.info("Forwarded channel: '%s'.", c.name)
-                s.add(db.ArtWork(**artwork, forwarded_channel=c))
+                s.add(ArtWork(**artwork, forwarded_channel=c))
                 s.commit()
     return
 

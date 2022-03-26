@@ -20,20 +20,8 @@ from sqlalchemy.orm import (
 # pretty __repr__ and __str__
 from sqlalchemy_repr import RepresentableBase
 
-# pixiv styles
-pixiv = (
-    IMAGE_LINK,
-    IMAGE_INFO_LINK,
-    IMAGE_INFO_EMBED_LINK,
-    INFO_LINK,
-    INFO_EMBED_LINK,
-) = range(5)
-
-# link types
-types = (
-    TWITTER,
-    PIXIV,
-) = range(2)
+# import pixiv and styles
+from extra import PixivStyle, LinkType
 
 # base class
 Base = declarative_base(cls=RepresentableBase)
@@ -41,6 +29,7 @@ Base = declarative_base(cls=RepresentableBase)
 
 class Channel(Base):
     """Table for storing telegram channel data"""
+
     __tablename__ = "channel"
     # channel public id
     id = Column(BigInteger, primary_key=True, autoincrement=False)
@@ -90,6 +79,7 @@ class Channel(Base):
 
 class User(Base):
     """Table for storing telegram user data"""
+
     __tablename__ = "user"
     # telegram account id
     id = Column(BigInteger, primary_key=True, autoincrement=False)
@@ -123,8 +113,8 @@ class User(Base):
     pixiv_style = Column(Integer, default=1, nullable=False)
 
     @validates("pixiv_style")
-    def validate_forwarding(self, key, value):
-        if pixiv[0] <= value <= pixiv[-1]:
+    def validate_pixiv_style(self, key, value):
+        if PixivStyle.validate(value):
             return value
         raise ValueError(f"Invalid value {value!r} for field {key!r}.")
 
@@ -138,6 +128,7 @@ class User(Base):
 
 class ArtWork(Base):
     """Table for storing channel post with artwork data"""
+
     __tablename__ = "artwork"
     # artwork record id
     id = Column(BigInteger().with_variant(Integer, "sqlite"), primary_key=True)
@@ -146,7 +137,7 @@ class ArtWork(Base):
 
     @validates("type")
     def validate_type(self, key, value):
-        if types[0] <= value <= types[-1]:
+        if LinkType.validate(value):
             return value
         raise ValueError(f"Invalid value {value!r} for field {key!r}.")
 

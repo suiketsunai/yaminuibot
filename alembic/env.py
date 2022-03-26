@@ -31,7 +31,7 @@ fileConfig(config.config_file_name)
 # change database URI
 config.set_main_option("sqlalchemy.url", os.environ["SB_CNT"].format(password=os.environ["SB_PSW"]))
 
-from db.models import Base
+from db import Base
 
 # add your model's MetaData object here
 # for 'autogenerate' support
