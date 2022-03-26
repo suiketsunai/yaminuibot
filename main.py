@@ -4,7 +4,6 @@ import re
 import json
 import base64
 import logging
-import threading
 
 from pathlib import Path
 from datetime import datetime
@@ -197,10 +196,6 @@ _switch = {
 
 # states
 states = (CHANNEL,) = map(chr, range(1))
-
-# events
-not_busy = threading.Event()
-not_busy.set()
 
 # fake headers
 fake_headers = {
@@ -777,7 +772,6 @@ def get_other_links(aid: int, type: int) -> list[str]:
 
 def get_user_data(update: Update):
     with Session(engine) as s:
-        not_busy.wait()
         if u := s.get(User, update.effective_chat.id):
             data = {
                 "forward_mode": u.forward_mode,
@@ -1107,44 +1101,33 @@ def command_cancel(update: Update, context: CallbackContext) -> int:
 
 def command_forward(update: Update, _) -> None:
     """Enables/Disables forwarding to channel"""
-    not_busy.wait()
-    not_busy.clear()
     notify(update, command="/forward")
     send_reply(
         update,
         f"Forwarding mode is *{_switch[toggler(update, 'forward_mode')]}*\\.",
     )
-    not_busy.set()
 
 
 def command_reply(update: Update, _) -> None:
     """Enables/Disables replying to messages"""
-    not_busy.wait()
-    not_busy.clear()
     notify(update, command="/reply")
     send_reply(
         update,
         f"Replying mode is *{_switch[toggler(update, 'reply_mode')]}*\\.",
     )
-    not_busy.set()
 
 
 def command_media(update: Update, _) -> None:
     """Enables/Disables adding video/gif to links"""
-    not_busy.wait()
-    not_busy.clear()
     notify(update, command="/media")
     send_reply(
         update,
         f"Media mode is *{_switch[toggler(update, 'media_mode')]}*\\.",
     )
-    not_busy.set()
 
 
 def command_style(update: Update, _) -> None:
     """Change pixiv style."""
-    not_busy.wait()
-    not_busy.clear()
     notify(update, command="/style")
     with Session(engine) as s:
         u = s.get(User, update.effective_chat.id)
@@ -1167,7 +1150,6 @@ def command_style(update: Update, _) -> None:
         case _:
             style = "Unknown"
     send_reply(update, f"_Style has been changed to_\\:\n\n{style}")
-    not_busy.set()
 
 
 ################################################################################
