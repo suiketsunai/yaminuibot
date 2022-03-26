@@ -446,10 +446,6 @@ def send_media_group(
     style: int = None,
     **kwargs,
 ):
-    media = []
-    for file in download_media(info, full=False, order=order):
-        media.append(InputMediaPhoto(file.read_bytes()))
-        file.unlink()
     caption = ""
     match style:
         case db.IMAGE_LINK:
@@ -476,6 +472,10 @@ def send_media_group(
             )
         case _:
             caption = esc(info["link"])
+    media = []
+    for file in download_media(info, full=False, order=order):
+        media.append(InputMediaPhoto(file.read_bytes()))
+        file.unlink()
     media[0].caption = caption
     media[0].parse_mode = ParseMode.MARKDOWN_V2
     return context.bot.send_media_group(
@@ -1370,11 +1370,13 @@ def universal(update: Update, context: CallbackContext) -> None:
                                 chat_id=data["channel_id"],
                             ):
                                 with Session(engine) as s:
+                                    if not isinstance(post, Message):
+                                        post = post[0]
                                     s.add(
                                         db.ArtWork(
                                             **artwork,
-                                            post_id=post[0].message_id,
-                                            post_date=post[0].date,
+                                            post_id=post.message_id,
+                                            post_date=post.date,
                                             files=extract_media_ids(
                                                 art._asdict()
                                             ),
@@ -1432,10 +1434,12 @@ def universal(update: Update, context: CallbackContext) -> None:
                 chat_id=data["channel_id"],
             )
             if post:
+                if not isinstance(post, Message):
+                    post = post[0]
                 artwork.update(
                     {
-                        "post_id": post[0].message_id,
-                        "post_date": post[0].date,
+                        "post_id": post.message_id,
+                        "post_date": post.date,
                         "is_original": check_original(
                             data["last_info"]["id"],
                             data["last_info"]["type"],
@@ -1563,11 +1567,13 @@ def answer_query(update: Update, context: CallbackContext) -> None:
                 chat_id=data["channel_id"],
             ):
                 with Session(engine) as s:
+                    if not isinstance(post, Message):
+                        post = post[0]
                     s.add(
                         db.ArtWork(
                             **artwork,
-                            post_id=post[0].message_id,
-                            post_date=post[0].date,
+                            post_id=post.message_id,
+                            post_date=post.date,
                             files=extract_media_ids(art._asdict()),
                         )
                     )
@@ -1575,7 +1581,7 @@ def answer_query(update: Update, context: CallbackContext) -> None:
                 if data["reply_mode"]:
                     send_media_group(
                         context,
-                        data["last_info"],
+                        art._asdict(),
                         style=data["pixiv_style"],
                         reply_to_message_id=update.effective_message.message_id,
                         chat_id=chat_id,
