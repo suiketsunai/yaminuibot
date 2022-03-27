@@ -20,7 +20,7 @@ from sqlalchemy.orm import (
 # pretty __repr__ and __str__
 from sqlalchemy_repr import RepresentableBase
 
-# import pixiv and styles
+# import pixiv styles and link types
 from extra import PixivStyle, LinkType
 
 # base class

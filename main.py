@@ -1157,7 +1157,6 @@ def answer_query(update: Update, context: CallbackContext) -> None:
             update,
             "Forwarding mode is turned off\\! Please, turn it on to proceed\\.",
         )
-    # print it in readable form
     update.callback_query.answer()
     links = update.effective_message.entities
     link, posted = links[0], links[1:-3]
