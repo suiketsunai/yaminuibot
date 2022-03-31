@@ -83,7 +83,7 @@ config = tomli.load(Path(os.environ["PATH_SETTINGS"]).open("rb"))
 
 # session settings
 engine = create_engine(
-    os.environ["SB_CNT"].format(password=os.environ["SB_PSW"]),
+    os.environ["DATABASE_URI"],
     future=True,
 )
 
@@ -1302,20 +1302,12 @@ def main() -> None:
     # migrate_db()
 
     # create updater & dispatcher
-    updater = Updater(os.environ["TOKEN"])
-
-    # start bot
-    webhook = (
-        "https://"
-        + os.environ["APP_NAME"]
-        + ".herokuapp.com/"
-        + os.environ["TOKEN"]
-    )
-    updater.start_webhook(
-        listen="0.0.0.0",
-        port=int(os.environ.get("PORT", "8443")),
-        url_path=os.environ["TOKEN"],
-        webhook_url=webhook,
+    updater = Updater(
+        os.environ["TOKEN"],
+        request_kwargs={
+            "read_timeout": 6,
+            "connect_timeout": 7,
+        },
     )
     dispatcher = updater.dispatcher
 

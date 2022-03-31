@@ -29,7 +29,7 @@ config = context.config
 fileConfig(config.config_file_name)
 
 # change database URI
-config.set_main_option("sqlalchemy.url", os.environ["SB_CNT"].format(password=os.environ["SB_PSW"]))
+# config.set_main_option("sqlalchemy.url", os.environ["SB_CNT"].format(password=os.environ["SB_PSW"]))
 
 from db import Base
 
