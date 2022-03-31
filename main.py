@@ -1411,9 +1411,6 @@ def main() -> None:
         )
     )
 
-    # start bot
-    updater.start_polling()
-
     # stop bot
     updater.idle()
 
