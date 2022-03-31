@@ -16,7 +16,6 @@ from dotenv import load_dotenv
 import tomli
 
 # working with database
-from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, aliased
 
 # working with timezone
@@ -58,8 +57,11 @@ import requests
 # working with images
 from PIL import Image
 
+# database engine
+from db import engine
+
 # database models
-from db import User, Channel, ArtWork
+from db.models import User, Channel, ArtWork
 
 # import pixiv styles and link types
 from extra import *
@@ -80,12 +82,6 @@ file_dir = Path(__file__).parent
 # load .env file & get config
 load_dotenv()
 config = tomli.load(Path(os.environ["PATH_SETTINGS"]).open("rb"))
-
-# session settings
-engine = create_engine(
-    os.environ["SB_CNT"].format(password=os.environ["SB_PSW"]),
-    future=True,
-)
 
 ################################################################################
 # logger
