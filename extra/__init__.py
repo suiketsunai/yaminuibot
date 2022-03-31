@@ -1,3 +1,5 @@
+import re
+
 # namedtuples
 from extra.namedtuples import ArtWorkMedia, Link
 
@@ -77,7 +79,8 @@ fake_headers = {
 }
 
 # pixiv regex
-pixiv_regex = r"^(?:\s*\d+\s*)+$"
+pixiv_regex = re.compile(r"^((?:\d+)(?:-\d+)?\s*[.,]*\s*){1,10}$")
+pixiv_number = re.compile(r"((?P<n1>\d+)(?:-(?P<n2>\d+))?)")
 
 # telegram deep linking
 telegram_link = "t.me/c/{cid}/{post_id}"

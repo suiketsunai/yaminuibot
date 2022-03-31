@@ -416,6 +416,7 @@ def send_media_doc(
     *,
     media_filter: list[str] = None,
     order: list[int] = None,
+    style: int = None,
     **kwargs,
 ) -> Message:
     if media_filter and info["media"] not in media_filter:
@@ -820,6 +821,87 @@ def command_style(update: Update, _) -> None:
 ################################################################################
 
 
+def pixiv_parse(
+    update: Update,
+    context: CallbackContext,
+    data: dict,
+    text: str,
+) -> None:
+    last_info = data["last_info"]
+    # initial data
+    count = len(last_info["thumbs"])
+    ids = []
+    for number in re.finditer(pixiv_number, text):
+        n1 = int(number.group("n1"))
+        if n2 := number.group("n2"):
+            n2 = int(n2)
+        else:
+            n2 = n1
+        if n1 > n2:
+            ids += reversed(range(n2, n1 + 1))
+        else:
+            ids += range(n1, n2 + 1)
+    ids = list(dict.fromkeys(ids))
+    if len(ids) > 10:
+        return _error(update, "You *can\\'t* choose more than 10 files\\!")
+    if max(ids) > count or min(ids) < 1:
+        return _error(update, f"*Not within* range: \\[`1`\\-`{count}`\\]\\!")
+    # save for reuse
+    common_data = {
+        "context": context,
+        "info": last_info,
+        "style": data["pixiv_style"],
+        "order": ids,
+    }
+    data_reply = {
+        **common_data,
+        "chat_id": update.effective_chat.id,
+        "reply_to_message_id": update.effective_message.message_id,
+    }
+
+    if data["forward_mode"]:
+        art = {
+            "aid": last_info["id"],
+            "type": last_info["type"],
+            "channel": data["channel"],
+        }
+        post = send_media_group(**common_data, chat_id=data["channel_id"])
+        if not post:
+            return _error(update, "Coudn't post\\!")
+        if not isinstance(post, Message):
+            post = post[0]
+        art.update(
+            {
+                "post_id": post.message_id,
+                "post_date": post.date,
+                "is_original": check_original(
+                    last_info["id"],
+                    last_info["type"],
+                ),
+                "is_forwarded": False,
+            }
+        )
+        with Session(engine) as s:
+            s.add(ArtWork(**art, files=extract_media_ids(last_info)))
+            s.commit()
+        if data["reply_mode"]:
+            send_media_group(**data_reply)
+            _reply(update, f'Posted\\!\n{esc(last_info["link"])}')
+    else:
+        if data["reply_mode"]:
+            send_media_group(**data_reply)
+            _reply(update, f"Sending files\\.\\.\\.")
+        send_media_doc(**data_reply)
+    # upload to cloud
+    if int(os.environ["USER_ID"]) == update.effective_chat.id:
+        download_media(info=last_info, order=ids, down=True)
+    # clean last_info for user
+    with Session(engine) as s:
+        u = s.get(User, update.effective_chat.id)
+        u.last_info = None
+        s.commit()
+
+
 def universal(update: Update, context: CallbackContext) -> None:
     """Universal function for handling posting
 
@@ -1046,90 +1128,7 @@ def universal(update: Update, context: CallbackContext) -> None:
                             )
                         continue
     elif data["last_info"] and re.search(pixiv_regex, text):
-        count = len(data["last_info"]["thumbs"])
-        ids = unduplicate([int(i.group()) for i in re.finditer(r"\d+", text)])
-        if len(ids) > 10:
-            _error(update, "You *can\\'t* choose more than 10 files\\!")
-            return
-        if max(ids) > count or min(ids) < 1:
-            _error(
-                update,
-                f"*Not within* range *\\[*`1`\\-`{count}`*\\]*\\!",
-            )
-            return
-        if data["forward_mode"]:
-            artwork = {
-                "aid": data["last_info"]["id"],
-                "type": data["last_info"]["type"],
-                "channel": data["channel"],
-            }
-            post = send_media_group(
-                context,
-                data["last_info"],
-                order=ids,
-                style=data["pixiv_style"],
-                chat_id=data["channel_id"],
-            )
-            if post:
-                if not isinstance(post, Message):
-                    post = post[0]
-                artwork.update(
-                    {
-                        "post_id": post.message_id,
-                        "post_date": post.date,
-                        "is_original": check_original(
-                            data["last_info"]["id"],
-                            data["last_info"]["type"],
-                        ),
-                        "is_forwarded": False,
-                    }
-                )
-                with Session(engine) as s:
-                    s.add(
-                        ArtWork(
-                            **artwork,
-                            files=extract_media_ids(data["last_info"]),
-                        )
-                    )
-                    s.commit()
-                if data["reply_mode"]:
-                    send_media_group(
-                        context,
-                        data["last_info"],
-                        order=ids,
-                        style=data["pixiv_style"],
-                        reply_to_message_id=mes.message_id,
-                        chat_id=chat_id,
-                    )
-                    _reply(
-                        update, f'Posted\\!\n{esc(data["last_info"]["link"])}'
-                    )
-                if int(os.environ["USER_ID"]) == chat_id:
-                    download_media(data["last_info"], order=ids, down=True)
-        else:
-            if data["reply_mode"]:
-                send_media_group(
-                    context,
-                    data["last_info"],
-                    order=ids,
-                    style=data["pixiv_style"],
-                    reply_to_message_id=mes.message_id,
-                    chat_id=chat_id,
-                )
-                _reply(update, f"Sending files\\.\\.\\.")
-            send_media_doc(
-                context,
-                data["last_info"],
-                order=ids,
-                reply_to_message_id=mes.message_id,
-                chat_id=chat_id,
-            )
-            if int(os.environ["USER_ID"]) == chat_id:
-                download_media(data["last_info"], order=ids, down=True)
-        with Session(engine) as s:
-            u = s.get(User, mes.chat_id)
-            u.last_info = None
-            s.commit()
+        pixiv_parse(update, context, data, text)
     else:
         return
 
