@@ -12,7 +12,7 @@ from pixivpy3 import AppPixivAPI
 import requests
 
 # import extra info
-import extra as ex
+from extra import LinkType, link_dict
 
 # import ArtWorkMedia
 from extra.namedtuples import ArtWorkMedia
@@ -27,7 +27,7 @@ pixiv_api = {
 }
 
 # get logger
-log = logging.getLogger('yaminuichan.extra.pixiv')
+log = logging.getLogger("yaminuichan.extra.pixiv")
 
 ################################################################################
 # pixiv
@@ -54,8 +54,8 @@ def get_pixiv_media(illust: dict) -> ArtWorkMedia:
             [page.image_urls.large for page in illust.meta_pages],
         ]
     return ArtWorkMedia(
-        ex.link_dict["pixiv"]["link"].format(id=illust.id),
-        ex.LinkType.PIXIV,
+        link_dict["pixiv"]["link"].format(id=illust.id),
+        LinkType.PIXIV,
         illust.id,
         illust.type,  # 'ugoira' or 'illust'
         illust.user.id,

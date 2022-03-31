@@ -64,6 +64,15 @@ from db import User, Channel, ArtWork
 # import pixiv styles and link types
 from extra import *
 
+# namedtuples
+from extra.namedtuples import ArtWorkMedia, Link
+
+# twitter
+from extra.twitter import get_twitter_links
+
+# pixiv
+from extra.pixiv import get_pixiv_links
+
 # current timestamp & this file directory
 date_run = datetime.now()
 file_dir = Path(__file__).parent

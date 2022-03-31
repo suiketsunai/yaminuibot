@@ -10,7 +10,7 @@ import tweepy
 import requests
 
 # import extra info
-import extra as ex
+from extra import LinkType, link_dict, fake_headers
 
 # import ArtWorkMedia
 from extra.namedtuples import ArtWorkMedia
@@ -53,7 +53,7 @@ def get_twitter_media(
         links = []
         for url in image_list:
             args = re.search(pat, url).groupdict()
-            links.append(ex.link_dict["twitter"]["full"].format(**args))
+            links.append(link_dict["twitter"]["full"].format(**args))
         return [links, [link.replace("orig", "large") for link in links]]
     else:
         base = "https://tweetpik.com/twitter-downloader/"
@@ -63,7 +63,7 @@ def get_twitter_media(
         res = s.post(
             url=api,
             headers={
-                **ex.fake_headers,
+                **fake_headers,
                 "Referer": base,
             },
         )
@@ -135,10 +135,10 @@ def get_twitter_links(tweet_id: int) -> ArtWorkMedia:
             text = text.replace(url["url"], url["expanded_url"])
         text = text.replace(res.data.entities["urls"][-1]["url"], "")
         return ArtWorkMedia(
-            ex.link_dict["twitter"]["link"].format(
+            link_dict["twitter"]["link"].format(
                 id=tweet_id, author=user.username
             ),
-            ex.LinkType.TWITTER,
+            LinkType.TWITTER,
             tweet_id,
             kind,
             user.id,
