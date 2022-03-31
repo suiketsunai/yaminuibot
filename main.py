@@ -297,7 +297,7 @@ _switch = {
 esc = partial(escape_markdown, version=2)
 
 
-def send_reply(update: Update, text: str, **kwargs) -> Message:
+def _reply(update: Update, text: str, **kwargs) -> Message:
     """Reply to current message
 
     Args:
@@ -314,7 +314,24 @@ def send_reply(update: Update, text: str, **kwargs) -> Message:
     )
 
 
-def send_warning(update: Update, link: Link, **kwargs) -> Message:
+def _error(update: Update, text: str, **kwargs) -> Message:
+    """Reply to current message with error
+
+    Args:
+        update (Update): current update
+        text (str): text to send in markdown v2
+
+    Returns:
+        Message: Telegram Message
+    """
+    return update.effective_message.reply_markdown_v2(
+        reply_to_message_id=update.effective_message.message_id,
+        text="\\[`ERROR`\\] " + text,
+        **kwargs,
+    )
+
+
+def _warn(update: Update, link: Link, **kwargs) -> Message:
     """Reply to current message
 
     Args:
@@ -470,23 +487,6 @@ def download_media(
     return files
 
 
-def send_error(update: Update, text: str, **kwargs) -> Message:
-    """Reply to current message with error
-
-    Args:
-        update (Update): current update
-        text (str): text to send in markdown v2
-
-    Returns:
-        Message: Telegram Message
-    """
-    return update.effective_message.reply_markdown_v2(
-        reply_to_message_id=update.effective_message.message_id,
-        text="\\[`ERROR`\\] " + text,
-        **kwargs,
-    )
-
-
 def forward(update: Update, channel: int) -> Message:
     """Forward message to channel"""
     notify(update, func="forward")
@@ -542,13 +542,13 @@ def channel_check(update: Update, context: CallbackContext) -> int:
     if getattr(mes, "forward_from_chat"):
         channel = mes.forward_from_chat
         if channel.type == "supergroup":
-            send_error(update, "This message is from a supergroup\\.")
+            _error(update, "This message is from a supergroup\\.")
         else:
             with Session(engine) as s:
                 if (c := s.get(Channel, channel.id)) and c.admin:
-                    send_error(update, "This channel is *already* owned\\.")
+                    _error(update, "This channel is *already* owned\\.")
                 else:
-                    send_reply(
+                    _reply(
                         update,
                         "*Seems fine\\!* ✨\n"
                         "Checking for *admin rights*\\.\\.\\.",
@@ -590,7 +590,7 @@ def channel_check(update: Update, context: CallbackContext) -> int:
                                 )
                             # commit changes to database
                             s.commit()
-                            send_reply(
+                            _reply(
                                 update,
                                 "*Done\\!* 🎉\n"
                                 "*Your channel* is added to the database\\!",
@@ -598,18 +598,18 @@ def channel_check(update: Update, context: CallbackContext) -> int:
                             del context.user_data[CHANNEL]
                             return ConversationHandler.END
                         else:
-                            send_error(
+                            _error(
                                 update,
                                 "Either *the bot* or *you* "
                                 "are not an admin of this channel\\!",
                             )
                     except Unauthorized as ex:
-                        send_error(
+                        _error(
                             update,
                             "The bot *was kicked* from this channel\\!",
                         )
     else:
-        send_error(update, "Please, *forward* a message from *your channel*\\.")
+        _error(update, "Please, *forward* a message from *your channel*\\.")
 
     return CHANNEL
 
@@ -692,13 +692,11 @@ def get_user_data(update: Update):
             }
             if u.forward_mode:
                 if not (channel := u.channel):
-                    send_error(
-                        update, "You have no channel\\! Send /channel\\."
-                    )
+                    _error(update, "You have no channel\\! Send /channel\\.")
                     return None
                 data.update({"channel": channel, "channel_id": channel.id})
         else:
-            send_error(update, "The bot doesn\\'t know you\\! Send /start\\.")
+            _error(update, "The bot doesn\\'t know you\\! Send /start\\.")
             return None
     return data
 
@@ -730,23 +728,21 @@ def command_start(update: Update, _) -> None:
 
 def command_help(update: Update, _) -> None:
     """Send a message when the command /help is issued."""
-    send_reply(
-        update, Path(os.environ["HELP_FILE"]).read_text(encoding="utf-8")
-    )
+    _reply(update, Path(os.environ["HELP_FILE"]).read_text(encoding="utf-8"))
 
 
 def command_channel(update: Update, context: CallbackContext) -> int:
     """Starts process of adding user's channel to their profile"""
     notify(update, command="/channel")
     if context.user_data.get(CHANNEL, None):
-        send_reply(
+        _reply(
             update,
             "*Ehm\\.\\.\\.*\n"
             "Please, forward a post from *your channel* already\\.",
         )
         return CHANNEL
     context.user_data[CHANNEL] = True
-    send_reply(
+    _reply(
         update,
         "*Sure\\!* 💫\n"
         "Please, add *this bot* to *your channel* as admin\\.\n"
@@ -760,18 +756,16 @@ def command_cancel(update: Update, context: CallbackContext) -> int:
     notify(update, command="/cancel")
     if context.user_data.get(CHANNEL, None):
         context.user_data[CHANNEL] = False
-        send_reply(
-            update, "*Okay\\!* 👌\nYou can add *your channel* at any time\\."
-        )
+        _reply(update, "*Okay\\!* 👌\nYou can add *your channel* any time\\.")
         return ConversationHandler.END
     else:
-        send_reply(update, "*Yeah, sure\\.* 👀\nCancel all you want\\.")
+        _reply(update, "*Yeah, sure\\.* 👀\nCancel all you want\\.")
 
 
 def command_forward(update: Update, _) -> None:
     """Enables/Disables forwarding to channel"""
     notify(update, command="/forward")
-    send_reply(
+    _reply(
         update,
         f"Forwarding mode is *{_switch[toggler(update, 'forward_mode')]}*\\.",
     )
@@ -780,7 +774,7 @@ def command_forward(update: Update, _) -> None:
 def command_reply(update: Update, _) -> None:
     """Enables/Disables replying to messages"""
     notify(update, command="/reply")
-    send_reply(
+    _reply(
         update,
         f"Replying mode is *{_switch[toggler(update, 'reply_mode')]}*\\.",
     )
@@ -789,7 +783,7 @@ def command_reply(update: Update, _) -> None:
 def command_media(update: Update, _) -> None:
     """Enables/Disables adding video/gif to links"""
     notify(update, command="/media")
-    send_reply(
+    _reply(
         update,
         f"Media mode is *{_switch[toggler(update, 'media_mode')]}*\\.",
     )
@@ -818,7 +812,7 @@ def command_style(update: Update, _) -> None:
             style = f"[Artwork \\| Author]({link})"
         case _:
             style = "Unknown"
-    send_reply(update, f"_Style has been changed to_\\:\n\n{style}")
+    _reply(update, f"_Style has been changed to_\\:\n\n{style}")
 
 
 ################################################################################
@@ -847,12 +841,12 @@ def universal(update: Update, context: CallbackContext) -> None:
     if links := formatter(text):
         if len(links) > 1:
             if any(link.type == LinkType.PIXIV for link in links):
-                send_error(update, "Can't process pixiv links in batch mode\\.")
+                _error(update, "Can't process pixiv links in batch mode\\.")
             links = [link for link in links if link.type == LinkType.TWITTER]
         if not data["forward_mode"]:
             for link in links:
                 if not (art := get_links(link)):
-                    send_error(update, "Couldn't get this content\\!")
+                    _error(update, "Couldn't get this content\\!")
                     continue
                 art = art._asdict()
                 if link.type == LinkType.TWITTER:
@@ -881,7 +875,7 @@ def universal(update: Update, context: CallbackContext) -> None:
                                 reply_to_message_id=mes.message_id,
                                 chat_id=chat_id,
                             )
-                            send_reply(update, f"Sending a file\\.\\.\\.")
+                            _reply(update, f"Sending a file\\.\\.\\.")
                         send_media_doc(
                             context,
                             art,
@@ -896,15 +890,15 @@ def universal(update: Update, context: CallbackContext) -> None:
                             u = s.get(User, mes.chat_id)
                             u.last_info = art
                             s.commit()
-                        send_reply(
+                        _reply(
                             update,
                             "Please, choose illustrations to download\\: "
-                            f'*\\[*`1`\\-`{len(art["links"])}`*\\]*\\.',
+                            f'\\[`1`\\-`{len(art["links"])}`\\]\\.',
                         )
         else:
             if mes.forward_date:
                 if getattr(mes, "media_group_id"):
-                    send_error(
+                    _error(
                         update,
                         "Unfortunately, bots can\\'t *forward* messages with "
                         "more than 1 media \\(photo/video\\) just yet\\. But "
@@ -914,7 +908,7 @@ def universal(update: Update, context: CallbackContext) -> None:
                     )
                     return
                 if len(links) > 1:
-                    send_error(
+                    _error(
                         update, "Only *one link* is allowed for forwarding\\!"
                     )
                     return
@@ -944,13 +938,10 @@ def universal(update: Update, context: CallbackContext) -> None:
                         s.add(ArtWork(**artwork, forwarded_channel=c))
                         s.commit()
                     if data["reply_mode"]:
-                        send_reply(
-                            update,
-                            f"Forwarded\\!\n{esc(link.link)}",
-                        )
+                        _reply(update, f"Forwarded\\!\n{esc(link.link)}")
                     if data["media_mode"]:
                         if not art:
-                            send_error(update, "Couldn't get this content\\!")
+                            _error(update, "Couldn't get this content\\!")
                         send_media_doc(
                             context,
                             art,
@@ -964,10 +955,10 @@ def universal(update: Update, context: CallbackContext) -> None:
                 for link in links:
                     is_orig = check_original(link.id, link.type)
                     if not is_orig:
-                        send_warning(update, link)
+                        _warn(update, link)
                         continue
                     if not (art := get_links(link)):
-                        send_error(update, "Couldn't get this content\\!")
+                        _error(update, "Couldn't get this content\\!")
                         continue
                     art = art._asdict()
                     artwork = {
@@ -994,10 +985,7 @@ def universal(update: Update, context: CallbackContext) -> None:
                                 )
                                 s.commit()
                             if data["reply_mode"]:
-                                send_reply(
-                                    update,
-                                    f'Posted\\!\n{esc(art["link"])}',
-                                )
+                                _reply(update, f'Posted\\!\n{esc(art["link"])}')
                             if data["media_mode"]:
                                 send_media_doc(
                                     context,
@@ -1041,9 +1029,8 @@ def universal(update: Update, context: CallbackContext) -> None:
                                         reply_to_message_id=mes.message_id,
                                         chat_id=chat_id,
                                     )
-                                    send_reply(
-                                        update,
-                                        f'Posted\\!\n{esc(art["link"])}',
+                                    _reply(
+                                        update, f'Posted\\!\n{esc(art["link"])}'
                                     )
                                 if int(os.environ["USER_ID"]) == chat_id:
                                     download_media(art, order=[1], down=True)
@@ -1052,20 +1039,20 @@ def universal(update: Update, context: CallbackContext) -> None:
                                 u = s.get(User, mes.chat_id)
                                 u.last_info = art
                                 s.commit()
-                            send_reply(
+                            _reply(
                                 update,
                                 "Please, choose illustrations to download\\: "
-                                f'*\\[*`1`\\-`{len(art["links"])}`*\\]*\\.',
+                                f'\\[`1`\\-`{len(art["links"])}`\\]\\.',
                             )
                         continue
     elif data["last_info"] and re.search(pixiv_regex, text):
         count = len(data["last_info"]["thumbs"])
         ids = unduplicate([int(i.group()) for i in re.finditer(r"\d+", text)])
         if len(ids) > 10:
-            send_error(update, "You *can\\'t* choose more than 10 files\\!")
+            _error(update, "You *can\\'t* choose more than 10 files\\!")
             return
         if max(ids) > count or min(ids) < 1:
-            send_error(
+            _error(
                 update,
                 f"*Not within* range *\\[*`1`\\-`{count}`*\\]*\\!",
             )
@@ -1114,9 +1101,8 @@ def universal(update: Update, context: CallbackContext) -> None:
                         reply_to_message_id=mes.message_id,
                         chat_id=chat_id,
                     )
-                    send_reply(
-                        update,
-                        f'Posted\\!\n{esc(data["last_info"]["link"])}',
+                    _reply(
+                        update, f'Posted\\!\n{esc(data["last_info"]["link"])}'
                     )
                 if int(os.environ["USER_ID"]) == chat_id:
                     download_media(data["last_info"], order=ids, down=True)
@@ -1130,7 +1116,7 @@ def universal(update: Update, context: CallbackContext) -> None:
                     reply_to_message_id=mes.message_id,
                     chat_id=chat_id,
                 )
-                send_reply(update, f"Sending files\\.\\.\\.")
+                _reply(update, f"Sending files\\.\\.\\.")
             send_media_doc(
                 context,
                 data["last_info"],
@@ -1153,7 +1139,7 @@ def answer_query(update: Update, context: CallbackContext) -> None:
     if not (data := get_user_data(update)):
         return
     if not data["forward_mode"]:
-        send_error(
+        _error(
             update,
             "Forwarding mode is turned off\\! Please, turn it on to proceed\\.",
         )
@@ -1162,7 +1148,7 @@ def answer_query(update: Update, context: CallbackContext) -> None:
     link, posted = links[0], links[1:-3]
     text = ", and ".join([f"[here]({esc(post['url'])})" for post in posted])
     if not (art := get_links(formatter(link["url"])[0])):
-        send_error(update, "Couldn't get this content\\!")
+        _error(update, "Couldn't get this content\\!")
         return
     art = art._asdict()
     artwork = {
@@ -1189,10 +1175,7 @@ def answer_query(update: Update, context: CallbackContext) -> None:
                 )
                 s.commit()
             if data["reply_mode"]:
-                send_reply(
-                    update,
-                    f'Posted\\!\n{esc(art["link"])}',
-                )
+                _reply(update, f'Posted\\!\n{esc(art["link"])}')
             if data["media_mode"]:
                 send_media_doc(
                     context,
@@ -1236,10 +1219,7 @@ def answer_query(update: Update, context: CallbackContext) -> None:
                         reply_to_message_id=update.effective_message.message_id,
                         chat_id=chat_id,
                     )
-                    send_reply(
-                        update,
-                        f'Posted\\!\n{esc(art["link"])}',
-                    )
+                    _reply(update, f'Posted\\!\n{esc(art["link"])}')
                 if int(os.environ["USER_ID"]) == chat_id:
                     download_media(art, order=[1], down=True)
                 result = "`\\[` *POST HAS BEEN POSTED\\.* `\\]`"
@@ -1248,10 +1228,10 @@ def answer_query(update: Update, context: CallbackContext) -> None:
                 u = s.get(User, update.effective_message.chat_id)
                 u.last_info = art
                 s.commit()
-            send_reply(
+            _reply(
                 update,
                 "Please, choose illustrations to download\\: "
-                f'*\\[*`1`\\-`{len(art["links"])}`*\\]*\\.',
+                f'\\[`1`\\-`{len(art["links"])}`\\]\\.',
             )
             result = "`\\[` *PLEASE, SPECIFY DATA\\.* `\\]`"
 
