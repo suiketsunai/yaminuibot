@@ -70,7 +70,7 @@ fake_headers = {
 }
 
 # pixiv regex
-pixiv_regex = re.compile(r"^((?:\d+)(?:-\d+)?\s*[.,]*\s*){1,10}$")
+pixiv_regex = re.compile(r"^((?:\d+)(?:-\d+)?[.,\s]*){1,10}$")
 pixiv_number = re.compile(r"((?P<n1>\d+)(?:-(?P<n2>\d+))?)")
 
 # telegram deep linking
