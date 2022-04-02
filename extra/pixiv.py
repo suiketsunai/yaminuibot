@@ -27,7 +27,7 @@ pixiv_api = {
 }
 
 # get logger
-log = logging.getLogger("yaminuichan.extra.pixiv")
+log = logging.getLogger("yaminuichan.pixiv")
 
 ################################################################################
 # pixiv
