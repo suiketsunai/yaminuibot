@@ -16,7 +16,7 @@ from extra import LinkType, link_dict, fake_headers
 from extra.namedtuples import ArtWorkMedia
 
 # get logger
-log = logging.getLogger("yaminuichan.extra.twitter")
+log = logging.getLogger("yaminuichan.twitter")
 
 ################################################################################
 # twitter
