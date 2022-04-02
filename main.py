@@ -1,6 +1,7 @@
 """Main module"""
 import os
 import re
+import time
 import json
 import base64
 import logging
@@ -8,6 +9,7 @@ import logging
 from pathlib import Path
 from datetime import datetime
 from functools import partial
+from dataclasses import dataclass
 
 # working with env
 from dotenv import load_dotenv
@@ -264,6 +266,18 @@ _switch = {
     False: "disabled",
 }
 
+# user data dictionary
+@dataclass
+class UserData:
+    forward: bool
+    reply: bool
+    media: bool
+    pixiv: int
+    info: dict
+    channel: Channel = None
+    channel_id: int = 0
+
+
 # escaping markdown v2
 esc = partial(escape_markdown, version=2)
 
@@ -408,7 +422,7 @@ def download_media(
     info: dict,
     *,
     full: bool = True,
-    down: bool = False,
+    user: int = 0,
     order: list[int] = None,
 ) -> list[Path] | None:
     if not info:
@@ -442,17 +456,27 @@ def download_media(
             log.error("download_media: Couldn't get name or format: %s.", link)
             continue
         name = reg.group("name") + "." + reg.group("format")
-        if down and os.environ["GG_URL"]:
-            log.info("Uploading file '%s'...", name)
-            r = requests.post(
-                url=os.environ["GG_URL"],
-                params={"name": name},
-                data=base64.urlsafe_b64encode(file.content),
-            )
-            if r.json()["ok"]:
-                log.info("Done uploading file '%s'.", name)
-            else:
-                log.info("File '%s' already exists.", name)
+        if user == upl_dict["user"] and upl_dict["link"]:
+            attempt = 1
+            while attempt <= 3:
+                upl_log.info("Uploading file '%s'...", name)
+                r = requests.post(
+                    url=os.getenv("GG_URL"),
+                    params={"name": name},
+                    data=base64.urlsafe_b64encode(file.content),
+                )
+                try:
+                    if r.json()["ok"]:
+                        upl_log.info("Done uploading file '%s'.", name)
+                    else:
+                        upl_log.info("File '%s' already exists.", name)
+                    break
+                except Exception as ex:
+                    upl_log.error("Exception occured: %s", ex)
+                    upl_log.info("Waiting for 3 seconds...")
+                    time.sleep(3)
+                    attempt += 1
+                    upl_log.info("Done. Current attempt: #%s.", attempt)
             continue
         image_file = Path(name)
         image_file.write_bytes(file.content)
@@ -697,22 +721,21 @@ def get_other_links(aid: int, type: int) -> list[str]:
 def get_user_data(update: Update):
     with Session(engine) as s:
         if u := s.get(User, update.effective_chat.id):
-            data = {
-                "forward_mode": u.forward_mode,
-                "reply_mode": u.reply_mode,
-                "media_mode": u.media_mode,
-                "pixiv_style": u.pixiv_style,
-                "last_info": u.last_info,
-            }
+            data = UserData(
+                u.forward_mode,
+                u.reply_mode,
+                u.media_mode,
+                u.pixiv_style,
+                u.last_info,
+            )
             if u.forward_mode:
                 if not (channel := u.channel):
                     _error(update, "You have no channel\\! Send /channel\\.")
                     return None
-                data.update({"channel": channel, "channel_id": channel.id})
-        else:
-            _error(update, "The bot doesn\\'t know you\\! Send /start\\.")
-            return None
-    return data
+                data.channel, data.channel_id = channel, channel.id
+            return data
+        _error(update, "The bot doesn\\'t know you\\! Send /start\\.")
+        return None
 
 
 ################################################################################
@@ -868,22 +891,22 @@ def pixiv_parse(
     common_data = {
         "context": context,
         "info": last_info,
-        "style": data["pixiv_style"],
+        "style": data.pixiv,
         "order": ids,
     }
-    data_reply = {
+    reply_data = {
         **common_data,
         "chat_id": update.effective_chat.id,
         "reply_to_message_id": update.effective_message.message_id,
     }
 
-    if data["forward_mode"]:
+    if data.forward:
         art = {
             "aid": last_info["id"],
             "type": last_info["type"],
-            "channel": data["channel"],
+            "channel": data.channel,
         }
-        post = send_media_group(**common_data, chat_id=data["channel_id"])
+        post = send_media_group(**common_data, chat_id=data.channel_id)
         if not post:
             return _error(update, "Coudn't post\\!")
         if not isinstance(post, Message):
@@ -902,22 +925,258 @@ def pixiv_parse(
         with Session(engine) as s:
             s.add(ArtWork(**art, files=extract_media_ids(last_info)))
             s.commit()
-        if data["reply_mode"]:
-            send_media_group(**data_reply)
+        if data.reply:
+            send_media_group(**reply_data)
             _reply(update, f'Posted\\!\n{esc(last_info["link"])}')
     else:
-        if data["reply_mode"]:
-            send_media_group(**data_reply)
+        if data.reply:
+            send_media_group(**reply_data)
             _reply(update, f"Sending files\\.\\.\\.")
-        send_media_doc(**data_reply)
+        send_media_doc(**reply_data)
     # upload to cloud
-    if int(os.environ["USER_ID"]) == update.effective_chat.id:
-        download_media(info=last_info, order=ids, down=True)
+    download_media(info=last_info, order=ids, user=update.effective_chat.id)
     # clean last_info for user
     with Session(engine) as s:
         u = s.get(User, update.effective_chat.id)
         u.last_info = None
         s.commit()
+
+
+def no_forwarding(
+    update: Update,
+    context: CallbackContext,
+    data: dict,
+    links: list[Link],
+) -> None:
+    notify(update, func="no_forwarding")
+    # process links
+    for link in links:
+        if not (art := get_links(link)):
+            log.error("Couldn't get content: '%s'.", link.link)
+            _error(update, "Couldn't get this content\\!")
+            continue
+        notify(update, art=art)
+        art = art._asdict()
+        common_data = {
+            "context": context,
+            "chat_id": update.effective_chat.id,
+            "info": art,
+            "reply_to_message_id": update.effective_message.message_id,
+        }
+        match link.type:
+            # twitter links
+            case LinkType.TWITTER:
+                if data.reply:
+                    send_post(**common_data)
+                send_media_doc(**common_data)
+            # one pixiv link
+            case LinkType.PIXIV:
+                if len(art["links"]) > 1:
+                    log.info("There's more than 1 artwork.")
+                    with Session(engine) as s:
+                        u = s.get(User, update.effective_chat.id)
+                        u.last_info = art
+                        s.commit()
+                    _reply(
+                        update,
+                        "Please, choose illustrations to download\\: "
+                        f'\\[`1`\\-`{len(art["links"])}`\\]\\.',
+                    )
+                    return
+                log.info("There's only 1 artwork.")
+                if data.reply:
+                    send_media_group(**common_data, style=data.pixiv)
+                    _reply(update, f"Sending a file\\.\\.\\.")
+                send_media_doc(**common_data)
+        # upload to cloud
+        download_media(art, user=update.effective_chat.id)
+
+
+def just_forwarding(
+    update: Update,
+    context: CallbackContext,
+    data: dict,
+    links: list[Link],
+) -> None:
+    notify(update, func="forward_forwarding")
+    # check if media group message
+    if getattr(update.effective_message, "media_group_id"):
+        log.error("Forward: Bots can't forward media groups.")
+        return _error(
+            update,
+            "Unfortunately, bots can\\'t *forward* messages with "
+            "more than 1 media \\(photo/video\\) just yet\\. But "
+            "they can *post* them\\! So, please, *for now*, "
+            "forward this kind of messages yourself\\. This may "
+            "change in the future Telegram Bot API updates\\.",
+        )
+    # check if more than 1 link in message
+    if len(links) > 1:
+        log.error("Forward: More than 1 link.")
+        return _error(update, "Only *one link* is allowed for forwarding\\!")
+    # and so there's one link
+    link = links[0]
+    artwork = {
+        "aid": link.id,
+        "type": link.type,
+        "channel": data.channel,
+    }
+    # can be ignored for this one
+    if not (art := get_links(link)):
+        log.warning("Forward: Couldn't get content: '%s'.", link.link)
+    else:
+        notify(update, art=art)
+        art = art._asdict()
+        artwork["files"] = extract_media_ids(art)
+    # check if it's forwarded from channel in database
+    with Session(engine) as s:
+        if src := update.effective_message.forward_from_chat:
+            if c := s.get(Channel, src.id):
+                artwork["forwarded_channel_id"] = c.id
+                log.info("Forward: Source: '%s' [%s].", c.name, c.cid)
+                if c.id == data.channel_id:
+                    log.error("Forward: Self-forwarding is no allowed.")
+                    return _error(update, "You shouldn't *self\\-forward*\\!")
+            else:
+                log.info("Forward: Spurce: unknown.")
+        else:
+            log.info("Forward: Source: not a channel.")
+    # just forward it
+    if post := forward(update, data.channel_id):
+        log.info("Forward: Successfully forwarded to channel.")
+        artwork.update(
+            {
+                "post_id": post.message_id,
+                "post_date": post.date,
+                "is_original": False,
+                "is_forwarded": True,
+            }
+        )
+        with Session(engine) as s:
+            s.add(ArtWork(**artwork))
+            s.commit()
+            log.debug("Forward: Inserted ArtWork: %s.", artwork)
+        if data.reply:
+            _reply(update, f"Forwarded\\!\n{esc(link.link)}")
+        if data.media:
+            if art:
+                if send_media_doc(
+                    context=context,
+                    info=art,
+                    media_filter=["video", "animated_gif"],
+                    chat_id=data.channel_id,
+                    reply_to_message_id=post.message_id,
+                ):
+                    log.info("Forward: Successfully replied with media.")
+            else:
+                _error(update, "*Media mode*\\: Couldn't get this content\\!")
+                log.warning("Forward: Couldn't reply with media.")
+    # upload to cloud
+    download_media(art, user=update.effective_chat.id)
+
+
+def just_posting(
+    update: Update,
+    context: CallbackContext,
+    data: dict,
+    links: list[Link],
+) -> None:
+    notify(update, func="just_posting")
+    # process links
+    for link in links:
+        is_orig = check_original(link.id, link.type)
+        if not is_orig:
+            _warn(update, link)
+            continue
+        if not (art := get_links(link)):
+            log.error("Post: Couldn't get content: '%s'.", link.link)
+            _error(update, "Couldn't get this content\\!")
+            continue
+        notify(update, art=art)
+        art = art._asdict()
+        artwork = {
+            "aid": link.id,
+            "type": link.type,
+            "channel": data.channel,
+            "is_original": True,
+            "is_forwarded": False,
+        }
+        common_data = {
+            "context": context,
+            "info": art,
+        }
+        reply_data = {
+            **common_data,
+            "chat_id": update.effective_chat.id,
+            "reply_to_message_id": update.effective_message.message_id,
+        }
+        match link.type:
+            # twitter links
+            case LinkType.TWITTER:
+                if post := send_post(**common_data, chat_id=data.channel_id):
+                    log.info("Post: Successfully forwarded to channel.")
+                    artwork.update(
+                        {
+                            "post_id": post.message_id,
+                            "post_date": post.date,
+                            "files": extract_media_ids(art),
+                        }
+                    )
+                    with Session(engine) as s:
+                        s.add(ArtWork(**artwork))
+                        s.commit()
+                        log.debug("Post: Inserted ArtWork: %s.", artwork)
+                    if data.reply:
+                        _reply(update, f'Posted\\!\n{esc(art["link"])}')
+                    if data.media:
+                        send_media_doc(
+                            **common_data,
+                            media_filter=["video", "animated_gif"],
+                            chat_id=data.channel_id,
+                            reply_to_message_id=post.message_id,
+                        )
+            # pixiv links
+            case LinkType.PIXIV:
+                if (
+                    len(art["links"]) == 1
+                    or data.pixiv == PixivStyle.INFO_LINK
+                    or data.pixiv == PixivStyle.INFO_EMBED_LINK
+                ):
+                    if post := send_media_group(
+                        **common_data,
+                        style=data.pixiv,
+                        chat_id=data.channel_id,
+                    ):
+                        if not isinstance(post, Message):
+                            post = post[0]
+                        log.info("Post: Successfully forwarded to channel.")
+                        artwork.update(
+                            {
+                                "post_id": post.message_id,
+                                "post_date": post.date,
+                                "files": extract_media_ids(art),
+                            }
+                        )
+                        with Session(engine) as s:
+                            s.add(ArtWork(**artwork))
+                            s.commit()
+                            log.debug("Post: Inserted ArtWork: %s.", artwork)
+                        if data.reply:
+                            send_media_group(**reply_data, style=data.pixiv)
+                            _reply(update, f'Posted\\!\n{esc(art["link"])}')
+                else:
+                    with Session(engine) as s:
+                        u = s.get(User, update.effective_chat.id)
+                        u.last_info = art
+                        s.commit()
+                    _reply(
+                        update,
+                        "Please, choose illustrations to download\\: "
+                        f'\\[`1`\\-`{len(art["links"])}`\\]\\.',
+                    )
+                    continue
+        # upload to cloud
+        download_media(art, user=update.effective_chat.id)
 
 
 def universal(update: Update, context: CallbackContext) -> None:
@@ -928,224 +1187,29 @@ def universal(update: Update, context: CallbackContext) -> None:
         context (CallbackContext): current context
     """
     notify(update, func="universal")
-    chat_id = update.effective_chat.id
     # get data
     if not (data := get_user_data(update)):
-        return
-    # get message
-    mes = update.effective_message
-    # if no text
-    if not ((text := mes.text) or (text := mes.caption)):
-        return
+        return log.error("No data for user: %s.", update.effective_chat.id)
+    # check for text
+    if not (text := update.effective_message.text):
+        # check for caption
+        if not (text := update.effective_message.caption):
+            # no text found!
+            return log.error("No text.")
     # check for links
     if links := formatter(text):
         if len(links) > 1:
             if any(link.type == LinkType.PIXIV for link in links):
-                _error(update, "Can't process pixiv links in batch mode\\.")
+                _error(update, "Can't process pixiv links in *batch* mode\\.")
             links = [link for link in links if link.type == LinkType.TWITTER]
-        if not data["forward_mode"]:
-            for link in links:
-                if not (art := get_links(link)):
-                    _error(update, "Couldn't get this content\\!")
-                    continue
-                art = art._asdict()
-                if link.type == LinkType.TWITTER:
-                    if data["reply_mode"]:
-                        send_post(
-                            context,
-                            art,
-                            chat_id=chat_id,
-                        )
-                    send_media_doc(
-                        context,
-                        art,
-                        reply_to_message_id=mes.message_id,
-                        chat_id=mes.chat_id,
-                    )
-                    if int(os.environ["USER_ID"]) == chat_id:
-                        download_media(art, down=True)
-                    continue
-                if link.type == LinkType.PIXIV:
-                    if len(art["links"]) == 1:
-                        if data["reply_mode"]:
-                            send_media_group(
-                                context,
-                                art,
-                                style=data["pixiv_style"],
-                                reply_to_message_id=mes.message_id,
-                                chat_id=chat_id,
-                            )
-                            _reply(update, f"Sending a file\\.\\.\\.")
-                        send_media_doc(
-                            context,
-                            art,
-                            reply_to_message_id=mes.message_id,
-                            chat_id=mes.chat_id,
-                        )
-                        if int(os.environ["USER_ID"]) == chat_id:
-                            download_media(art, order=[1], down=True)
-                        continue
-                    else:
-                        with Session(engine) as s:
-                            u = s.get(User, mes.chat_id)
-                            u.last_info = art
-                            s.commit()
-                        _reply(
-                            update,
-                            "Please, choose illustrations to download\\: "
-                            f'\\[`1`\\-`{len(art["links"])}`\\]\\.',
-                        )
+        if not data.forward:
+            no_forwarding(update, context, data, links)
         else:
-            if mes.forward_date:
-                if getattr(mes, "media_group_id"):
-                    _error(
-                        update,
-                        "Unfortunately, bots can\\'t *forward* messages with "
-                        "more than 1 media \\(photo/video\\) just yet\\. But "
-                        "they can *post* them\\! So, please, *for now*, "
-                        "forward this kind of messages yourself\\. This may "
-                        "change in the future Telegram Bot API updates\\.",
-                    )
-                    return
-                if len(links) > 1:
-                    _error(
-                        update, "Only *one link* is allowed for forwarding\\!"
-                    )
-                    return
-                link = links[0]
-                artwork = {
-                    "aid": link.id,
-                    "type": link.type,
-                    "channel": data["channel"],
-                }
-                if art := get_links(link):
-                    art = art._asdict()
-                    artwork["files"] = extract_media_ids(art)
-                if post := forward(update, data["channel_id"]):
-                    artwork.update(
-                        {
-                            "post_id": post.message_id,
-                            "post_date": post.date,
-                            "is_original": False,
-                            "is_forwarded": True,
-                        }
-                    )
-                    with Session(engine) as s:
-                        c = None
-                        if getattr(mes, "forward_from_chat"):
-                            c = s.get(Channel, mes.forward_from_chat.id)
-                            log.info("Forwarded channel: '%s'.", c.name)
-                        s.add(ArtWork(**artwork, forwarded_channel=c))
-                        s.commit()
-                    if data["reply_mode"]:
-                        _reply(update, f"Forwarded\\!\n{esc(link.link)}")
-                    if data["media_mode"]:
-                        if not art:
-                            _error(update, "Couldn't get this content\\!")
-                        send_media_doc(
-                            context,
-                            art,
-                            media_filter=["video", "animated_gif"],
-                            chat_id=data["channel_id"],
-                            reply_to_message_id=post.message_id,
-                        )
-                    if int(os.environ["USER_ID"]) == chat_id:
-                        download_media(art, down=True)
+            if update.effective_message.forward_date:
+                just_forwarding(update, context, data, links)
             else:
-                for link in links:
-                    is_orig = check_original(link.id, link.type)
-                    if not is_orig:
-                        _warn(update, link)
-                        continue
-                    if not (art := get_links(link)):
-                        _error(update, "Couldn't get this content\\!")
-                        continue
-                    art = art._asdict()
-                    artwork = {
-                        "aid": link.id,
-                        "type": link.type,
-                        "channel": data["channel"],
-                        "is_original": True,
-                        "is_forwarded": False,
-                    }
-                    if link.type == LinkType.TWITTER:
-                        if post := send_post(
-                            context,
-                            art,
-                            chat_id=data["channel_id"],
-                        ):
-                            with Session(engine) as s:
-                                s.add(
-                                    ArtWork(
-                                        **artwork,
-                                        post_id=post.message_id,
-                                        post_date=post.date,
-                                        files=extract_media_ids(art),
-                                    )
-                                )
-                                s.commit()
-                            if data["reply_mode"]:
-                                _reply(update, f'Posted\\!\n{esc(art["link"])}')
-                            if data["media_mode"]:
-                                send_media_doc(
-                                    context,
-                                    art,
-                                    media_filter=["video", "animated_gif"],
-                                    chat_id=data["channel_id"],
-                                    reply_to_message_id=post.message_id,
-                                )
-                            if int(os.environ["USER_ID"]) == chat_id:
-                                download_media(art, down=True)
-                        continue
-                    if link.type == LinkType.PIXIV:
-                        if (
-                            len(art["links"]) == 1
-                            or data["pixiv_style"] == PixivStyle.INFO_LINK
-                            or data["pixiv_style"] == PixivStyle.INFO_EMBED_LINK
-                        ):
-                            if post := send_media_group(
-                                context,
-                                art,
-                                style=data["pixiv_style"],
-                                chat_id=data["channel_id"],
-                            ):
-                                with Session(engine) as s:
-                                    if not isinstance(post, Message):
-                                        post = post[0]
-                                    s.add(
-                                        ArtWork(
-                                            **artwork,
-                                            post_id=post.message_id,
-                                            post_date=post.date,
-                                            files=extract_media_ids(art),
-                                        )
-                                    )
-                                    s.commit()
-                                if data["reply_mode"]:
-                                    send_media_group(
-                                        context,
-                                        art,
-                                        style=data["pixiv_style"],
-                                        reply_to_message_id=mes.message_id,
-                                        chat_id=chat_id,
-                                    )
-                                    _reply(
-                                        update, f'Posted\\!\n{esc(art["link"])}'
-                                    )
-                                if int(os.environ["USER_ID"]) == chat_id:
-                                    download_media(art, order=[1], down=True)
-                        else:
-                            with Session(engine) as s:
-                                u = s.get(User, mes.chat_id)
-                                u.last_info = art
-                                s.commit()
-                            _reply(
-                                update,
-                                "Please, choose illustrations to download\\: "
-                                f'\\[`1`\\-`{len(art["links"])}`\\]\\.',
-                            )
-                        continue
-    elif data["last_info"] and re.search(pixiv_regex, text):
+                just_posting(update, context, data, links)
+    elif data.info and re.search(pixiv_regex, text):
         pixiv_parse(update, context, data, text)
     else:
         log.info("No idea what to do with message: '%s'.", text)
@@ -1156,7 +1220,7 @@ def answer_query(update: Update, context: CallbackContext) -> None:
     chat_id = update.effective_chat.id
     if not (data := get_user_data(update)):
         return
-    if not data["forward_mode"]:
+    if not data.forward:
         _error(
             update,
             "Forwarding mode is turned off\\! Please, turn it on to proceed\\.",
@@ -1166,13 +1230,15 @@ def answer_query(update: Update, context: CallbackContext) -> None:
     link, posted = links[0], links[1:-3]
     text = ", and ".join([f"[here]({esc(post['url'])})" for post in posted])
     if not (art := get_links(formatter(link["url"])[0])):
+        log.error("Couldn't get content: '%s'.", link.link)
         _error(update, "Couldn't get this content\\!")
         return
+    notify(update, art=art)
     art = art._asdict()
     artwork = {
         "aid": art["id"],
         "type": art["type"],
-        "channel": data["channel"],
+        "channel": data.channel,
         "is_original": False,
         "is_forwarded": False,
     }
@@ -1180,7 +1246,7 @@ def answer_query(update: Update, context: CallbackContext) -> None:
         if post := send_post(
             context,
             art,
-            chat_id=data["channel_id"],
+            chat_id=data.channel_id,
         ):
             with Session(engine) as s:
                 s.add(
@@ -1192,30 +1258,29 @@ def answer_query(update: Update, context: CallbackContext) -> None:
                     )
                 )
                 s.commit()
-            if data["reply_mode"]:
+            if data.reply:
                 _reply(update, f'Posted\\!\n{esc(art["link"])}')
-            if data["media_mode"]:
+            if data.media:
                 send_media_doc(
                     context,
                     art,
                     media_filter=["video", "animated_gif"],
-                    chat_id=data["channel_id"],
+                    chat_id=data.channel_id,
                     reply_to_message_id=post.message_id,
                 )
-            if int(os.environ["USER_ID"]) == chat_id:
-                download_media(art, down=True)
+            download_media(art, user=chat_id)
         result = "`\\[` *POST HAS BEEN POSTED\\.* `\\]`"
     elif art["type"] == LinkType.PIXIV:
         if (
             len(art["links"]) == 1
-            or data["pixiv_style"] == PixivStyle.INFO_LINK
-            or data["pixiv_style"] == PixivStyle.INFO_EMBED_LINK
+            or data.pixiv == PixivStyle.INFO_LINK
+            or data.pixiv == PixivStyle.INFO_EMBED_LINK
         ):
             if post := send_media_group(
                 context,
                 art,
-                style=data["pixiv_style"],
-                chat_id=data["channel_id"],
+                style=data.pixiv,
+                chat_id=data.channel_id,
             ):
                 with Session(engine) as s:
                     if not isinstance(post, Message):
@@ -1229,17 +1294,16 @@ def answer_query(update: Update, context: CallbackContext) -> None:
                         )
                     )
                     s.commit()
-                if data["reply_mode"]:
+                if data.reply:
                     send_media_group(
                         context,
                         art,
-                        style=data["pixiv_style"],
+                        style=data.pixiv,
                         reply_to_message_id=update.effective_message.message_id,
                         chat_id=chat_id,
                     )
                     _reply(update, f'Posted\\!\n{esc(art["link"])}')
-                if int(os.environ["USER_ID"]) == chat_id:
-                    download_media(art, order=[1], down=True)
+                download_media(art, user=chat_id)
                 result = "`\\[` *POST HAS BEEN POSTED\\.* `\\]`"
         else:
             with Session(engine) as s:
