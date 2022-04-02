@@ -390,8 +390,11 @@ def send_media_doc(
     style: int = None,
     **kwargs,
 ) -> Message:
+    if not info:
+        return log.error("send_media_doc: No info supplied.")
     if media_filter and info["media"] not in media_filter:
-        return
+        return log.debug("send_media_doc: Didn't pass media filter.")
+    log.debug("send_media_doc: Passed media filter.")
     for file in download_media(info, full=True, order=order):
         context.bot.send_document(
             document=file.read_bytes(),
@@ -408,6 +411,8 @@ def download_media(
     down: bool = False,
     order: list[int] = None,
 ) -> list[Path] | None:
+    if not info:
+        return log.error("download_media: No info supplied.")
     if info["type"] == LinkType.PIXIV:
         headers = {
             "user-agent": "PixivIOSApp/7.13.3 (iOS 14.6; iPhone13,2)",
@@ -434,7 +439,7 @@ def download_media(
         )
         reg = re.search(file_pattern, link)
         if not reg:
-            log.error("Couldn't get name or format: %s.", link)
+            log.error("download_media: Couldn't get name or format: %s.", link)
             continue
         name = reg.group("name") + "." + reg.group("format")
         if down and os.environ["GG_URL"]:
@@ -460,33 +465,69 @@ def download_media(
 
 
 def forward(update: Update, channel: int) -> Message:
-    """Forward message to channel"""
+    """Forward message to channel
+
+    Args:
+        update (Update): current update
+        channel (int): a channel to forward to.
+    """
     notify(update, func="forward")
     return update.effective_message.forward(
         chat_id=channel,
     )
 
 
-def notify(update: Update, *, command: str = None, func: str = None) -> None:
+def notify(
+    update: Update,
+    *,
+    command: str = None,
+    func: str = None,
+    art: ArtWorkMedia = None,
+    toggle: tuple[str, bool] = None,
+) -> None:
     """Log that something hapened
 
     Args:
         update (Update): current update
         command (str, optional): called command. Defaults to None.
+        func (str, optional): called function. Defaults to None.
+        art (ArtWorkMedia, optional): art object. Defaults to None.
+        toggle (tuple[str, bool]m optional): toggler info. Defaults to None.
     """
     if command:
-        log.info(
-            "%s command was called by %s [%s].",
+        sys_log.info(
+            "[%s] '%s' called command: '%s'.",
+            update.effective_chat.id,
+            update.effective_chat.full_name or update.effective_chat.title,
             command,
-            update.effective_user.full_name,
-            update.effective_user.id,
         )
     if func:
-        log.info(
-            "%s function was called by %s [%s].",
-            command,
-            update.effective_user.full_name,
-            update.effective_user.id,
+        sys_log.info(
+            "[%s] '%s' called function: '%s'.",
+            update.effective_chat.id,
+            update.effective_chat.full_name or update.effective_chat.title,
+            func,
+        )
+    if art:
+        sys_log.info(
+            "[%s] '%s' received content: [%s/%s] '%s' by [%s/@%s] '%s' | %s.",
+            update.effective_chat.id,
+            update.effective_chat.full_name or update.effective_chat.title,
+            art.id,
+            art.media,
+            art.desc,
+            art.user_id,
+            art.username,
+            art.user,
+            art.date,
+        )
+    if toggle:
+        sys_log.info(
+            "[%s] '%s' called toggler: '%s' is now %s.",
+            update.effective_chat.id,
+            update.effective_chat.full_name or update.effective_chat.title,
+            toggle[0],
+            _switch[toggle[1]],
         )
 
 
@@ -502,10 +543,11 @@ def toggler(update: Update, attr: str) -> bool:
     """
     with Session(engine) as s:
         u = s.get(User, update.effective_chat.id)
-        state = getattr(u, attr)
-        setattr(u, attr, not state)
+        state = not getattr(u, attr)
+        setattr(u, attr, state)
         s.commit()
-        return not state
+        notify(update, toggle=(attr, state))
+        return state
 
 
 def channel_check(update: Update, context: CallbackContext) -> int:
@@ -700,7 +742,8 @@ def command_start(update: Update, _) -> None:
 
 def command_help(update: Update, _) -> None:
     """Send a message when the command /help is issued."""
-    _reply(update, Path(os.environ["HELP_FILE"]).read_text(encoding="utf-8"))
+    notify(update, command="/help")
+    _reply(update, Path(os.getenv("HELP_FILE")).read_text(encoding="utf-8"))
 
 
 def command_channel(update: Update, context: CallbackContext) -> int:
@@ -764,12 +807,14 @@ def command_media(update: Update, _) -> None:
 def command_style(update: Update, _) -> None:
     """Change pixiv style."""
     notify(update, command="/style")
+    # get old and new styles
     with Session(engine) as s:
         u = s.get(User, update.effective_chat.id)
         old_style = u.pixiv_style
         new_style = PixivStyle.styles[(old_style + 1) % len(PixivStyle.styles)]
         u.pixiv_style = new_style
         s.commit()
+    # demonstrate new style
     link = esc("https://www.pixiv.net/")
     match new_style:
         case PixivStyle.IMAGE_LINK:
@@ -798,7 +843,9 @@ def pixiv_parse(
     data: dict,
     text: str,
 ) -> None:
-    last_info = data["last_info"]
+    notify(update, func="pixiv_parse")
+    # speed up
+    last_info = data.info
     # initial data
     count = len(last_info["thumbs"])
     ids = []
@@ -1101,10 +1148,11 @@ def universal(update: Update, context: CallbackContext) -> None:
     elif data["last_info"] and re.search(pixiv_regex, text):
         pixiv_parse(update, context, data, text)
     else:
-        return
+        log.info("No idea what to do with message: '%s'.", text)
 
 
 def answer_query(update: Update, context: CallbackContext) -> None:
+    notify(update, func="answer_query")
     chat_id = update.effective_chat.id
     if not (data := get_user_data(update)):
         return
@@ -1213,8 +1261,7 @@ def answer_query(update: Update, context: CallbackContext) -> None:
 
 
 def handle_post(update: Update, context: CallbackContext) -> None:
-    print(f"\n\n{json.dumps(update.to_dict(), indent=2, default=str)}\n\n")
-
+    notify(update, func="handle_post")
     mes = update.effective_message
     if not ((text := mes.text) or (text := mes.caption)):
         return
@@ -1259,7 +1306,7 @@ def main() -> None:
     """Set up and run the bot"""
     # create updater & dispatcher
     updater = Updater(
-        os.environ["TOKEN"],
+        os.getenv("TOKEN"),
         request_kwargs={
             "read_timeout": 6,
             "connect_timeout": 7,
