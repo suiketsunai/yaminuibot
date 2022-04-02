@@ -1358,10 +1358,12 @@ def main() -> None:
 
     # start bot
     webhook = "".join(
-        "https://",
-        os.getenv("APP_NAME"),
-        ".herokuapp.com/",
-        os.getenv("TOKEN"),
+        [
+            "https://",
+            os.getenv("APP_NAME"),
+            ".herokuapp.com/",
+            os.getenv("TOKEN"),
+        ]
     )
     updater.start_webhook(
         listen="0.0.0.0",
