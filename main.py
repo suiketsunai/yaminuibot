@@ -891,9 +891,9 @@ def pixiv_parse(
 ) -> None:
     notify(update, func="pixiv_parse")
     # speed up
-    last_info = data.info
+    art = data.info
     # initial data
-    count = len(last_info["thumbs"])
+    count = len(art["links"])
     ids = []
     for number in re.finditer(pixiv_number, text):
         n1 = int(number.group("n1"))
@@ -911,47 +911,38 @@ def pixiv_parse(
     if max(ids) > count or min(ids) < 1:
         return _error(update, f"*Not within* range: \\[`1`\\-`{count}`\\]\\!")
     # save for reuse
-    com = {
-        "context": context,
-        "info": last_info,
-        "order": ids,
-    }
-
+    com = {"context": context, "info": art, "order": ids}
     if data.forward:
-        art = {
-            "aid": last_info["id"],
-            "type": last_info["type"],
-            "channel": data.chan,
-        }
+        artwork = {"aid": art["id"], "type": art["type"], "channel": data.chan}
         post = send_media(**com, style=data.pixiv, chat_id=data.chan_id)
         if not post:
-            return _error(update, "Coudn't post\\!")
+            _error(update, "Coudn't post\\!")
+            return log.error("Pixiv: Couldn't post.")
         if not isinstance(post, Message):
             post = post[0]
-        art.update(
+        artwork.update(
             {
                 "post_id": post.message_id,
                 "post_date": post.date,
-                "is_original": check_original(
-                    last_info["id"],
-                    last_info["type"],
-                ),
+                "is_original": check_original(art["id"], art["type"]),
                 "is_forwarded": False,
+                "files": extract_media_ids(art),
             }
         )
         with Session(engine) as s:
-            s.add(ArtWork(**art, files=extract_media_ids(last_info)))
+            s.add(ArtWork(**artwork))
             s.commit()
+            log.debug("Pixiv: Inserted ArtWork: %s.", artwork)
         if data.reply:
             send_media(**com, **rep(update), style=data.pixiv)
-            _reply(update, f'Posted\\!\n{esc(last_info["link"])}')
+            _reply(update, f'Posted\\!\n{esc(art["link"])}')
     else:
         if data.reply:
             send_media(**com, **rep(update), style=data.pixiv)
             _reply(update, f"Sending files\\.\\.\\.")
         send_media_doc(**com, **rep(update))
     # upload to cloud
-    download_media(info=last_info, order=ids, user=update.effective_chat.id)
+    download_media(info=art, order=ids, user=update.effective_chat.id)
     # clean last_info for user
     with Session(engine) as s:
         u = s.get(User, update.effective_chat.id)
