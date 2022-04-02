@@ -1367,7 +1367,7 @@ def main() -> None:
     )
     updater.start_webhook(
         listen="0.0.0.0",
-        port=int(os.getenv.get("PORT", "8443")),
+        port=int(os.getenv("PORT", "8443")),
         url_path=os.getenv("TOKEN"),
         webhook_url=webhook,
     )
