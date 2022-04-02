@@ -577,79 +577,64 @@ def toggler(update: Update, attr: str) -> bool:
 def channel_check(update: Update, context: CallbackContext) -> int:
     """Checks if channel is a valid choice"""
     mes = update.effective_message
-    if getattr(mes, "forward_from_chat"):
-        channel = mes.forward_from_chat
+    if channel := mes.forward_from_chat:
         if channel.type == "supergroup":
             _error(update, "This message is from a supergroup\\.")
-        else:
+            return log.error("Channel: This message is from a supergroup.")
+        with Session(engine) as s:
+            if (c := s.get(Channel, channel.id)) and c.admin:
+                _error(update, "This channel is *already* owned\\.")
+                return log.error("Channel: [%s] is already owned.", channel.id)
+        _reply(
+            update,
+            "*Seems fine\\!* ✨\nChecking for *admin rights*\\.\\.\\.",
+        )
+        bot_id = int(os.getenv("TOKEN").split(":")[0])
+        chat_id = update.effective_chat.id
+        chan_id = channel.id
+        try:
+            if not (
+                (_bot := context.bot.get_chat_member(chan_id, bot_id))
+                and getattr(_bot, "can_post_messages")
+                and (_user := context.bot.get_chat_member(channel.id, chat_id))
+                and _user.status in ["creator", "administrator"]
+            ):
+                _error(
+                    update,
+                    "Either *bot* or *you* are not admin of this channel\\!",
+                )
+                return log.error("Channel: No admin rights for user or bot.")
             with Session(engine) as s:
-                if (c := s.get(Channel, channel.id)) and c.admin:
-                    _error(update, "This channel is *already* owned\\.")
+                # get current user
+                u = s.get(User, update.effective_chat.id)
+                # remove old channel
+                if c:
+                    # channel already exist
+                    u.channel = c
                 else:
-                    _reply(
-                        update,
-                        "*Seems fine\\!* ✨\n"
-                        "Checking for *admin rights*\\.\\.\\.",
+                    # channel doesn't exist
+                    u.channel = None
+                    # create new channel
+                    Channel(
+                        id=channel.id,
+                        name=channel.title,
+                        link=channel.username,
+                        is_admin=True,
+                        admin=u,
                     )
-                    try:
-                        if (
-                            (
-                                member_bot := context.bot.get_chat_member(
-                                    channel.id,
-                                    int(os.environ["TOKEN"].split(":")[0]),
-                                )
-                            )
-                            and getattr(member_bot, "can_post_messages")
-                            and (
-                                member_user := context.bot.get_chat_member(
-                                    channel.id,
-                                    update.effective_chat.id,
-                                )
-                            )
-                            and member_user.status
-                            in ["creator", "administrator"]
-                        ):
-                            # get current user
-                            u = s.get(User, update.effective_chat.id)
-                            # remove old channel
-                            if c:
-                                # channel already exist
-                                u.channel = c
-                            else:
-                                # channel doesn't exist
-                                u.channel = None
-                                # create new channel
-                                Channel(
-                                    id=channel.id,
-                                    name=channel.title,
-                                    link=channel.username,
-                                    is_admin=True,
-                                    admin=u,
-                                )
-                            # commit changes to database
-                            s.commit()
-                            _reply(
-                                update,
-                                "*Done\\!* 🎉\n"
-                                "*Your channel* is added to the database\\!",
-                            )
-                            del context.user_data[CHANNEL]
-                            return ConversationHandler.END
-                        else:
-                            _error(
-                                update,
-                                "Either *the bot* or *you* "
-                                "are not an admin of this channel\\!",
-                            )
-                    except Unauthorized as ex:
-                        _error(
-                            update,
-                            "The bot *was kicked* from this channel\\!",
-                        )
-    else:
-        _error(update, "Please, *forward* a message from *your channel*\\.")
-
-    return CHANNEL
+                # commit changes to database
+                s.commit()
+            _reply(
+                update,
+                "*Done\\!* 🎉\n*Your channel* is added to the database\\!",
+            )
+            del context.user_data[CHANNEL]
+            return ConversationHandler.END
+        except Unauthorized as ex:
+            _error(update, "The bot *was kicked* from this channel\\!")
+            return log.error("Channel: The bot was kicked from this channel.")
+    _error(update, "Please, *forward* a message from *your channel*\\.")
+    return log.error("Channel: This message is from a user.")
 
 
 def get_file_size(link: str, session: requests.Session = None) -> int:
