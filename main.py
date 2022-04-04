@@ -266,6 +266,15 @@ _switch = {
     False: "disabled",
 }
 
+
+# callback query result
+_mode = [
+    "`\\[` *POST HAS BEEN POSTED\\.* `\\]`",
+    "`\\[` *PLEASE, SPECIFY DATA\\.* `\\]`",
+    "`\\[` *????????????????????\\.* `\\]`",
+]
+
+
 # user data dictionary
 @dataclass
 class UserData:
@@ -280,6 +289,13 @@ class UserData:
 
 # escaping markdown v2
 esc = partial(escape_markdown, version=2)
+
+
+def rep(update: Update):
+    return {
+        "chat_id": update.effective_chat.id,
+        "reply_to_message_id": update.effective_message.message_id,
+    }
 
 
 def _reply(update: Update, text: str, **kwargs) -> Message:
@@ -555,25 +571,6 @@ def notify(
         )
 
 
-def toggler(update: Update, attr: str) -> bool:
-    """Toggle state between True and False
-
-    Args:
-        update (Update): current update
-        attr (str): attribute to change
-
-    Returns:
-        bool: new state
-    """
-    with Session(engine) as s:
-        u = s.get(User, update.effective_chat.id)
-        state = not getattr(u, attr)
-        setattr(u, attr, state)
-        s.commit()
-        notify(update, toggle=(attr, state))
-        return state
-
-
 def channel_check(update: Update, context: CallbackContext) -> int:
     """Checks if channel is a valid choice"""
     mes = update.effective_message
@@ -667,14 +664,8 @@ def get_links(media: Link) -> ArtWorkMedia:
     return None
 
 
-def unduplicate(arr):
-    seen = set()
-    seen_add = seen.add
-    return [i for i in arr if not (i in seen or seen_add(i))]
-
-
 ################################################################################
-# database retrieve functions
+# database functions
 ################################################################################
 
 
@@ -721,6 +712,39 @@ def get_user_data(update: Update):
             return data
         _error(update, "The bot doesn\\'t know you\\! Send /start\\.")
         return None
+
+
+def toggler(update: Update, attr: str) -> bool:
+    """Toggle state between True and False
+
+    Args:
+        update (Update): current update
+        attr (str): attribute to change
+
+    Returns:
+        bool: new state
+    """
+    with Session(engine) as s:
+        u = s.get(User, update.effective_chat.id)
+        state = not getattr(u, attr)
+        setattr(u, attr, state)
+        s.commit()
+        notify(update, toggle=(attr, state))
+        return state
+
+
+def pixiv_save(update: Update, art: dict):
+    # add last_info to current user
+    with Session(engine) as s:
+        u = s.get(User, update.effective_chat.id)
+        u.last_info = art
+        s.commit()
+    # prompt user to choose illustrations
+    _reply(
+        update,
+        "Please, choose illustrations to download\\: "
+        f'\\[`1`\\-`{len(art["links"])}`\\]\\.',
+    )
 
 
 ################################################################################
