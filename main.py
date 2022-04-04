@@ -869,20 +869,6 @@ def command_style(update: Update, _) -> None:
 ################################################################################
 
 
-def pixiv_save(update: Update, art: dict):
-    # add last_info to current user
-    with Session(engine) as s:
-        u = s.get(User, update.effective_chat.id)
-        u.last_info = art
-        s.commit()
-    # prompt user to choose illustrations
-    _reply(
-        update,
-        "Please, choose illustrations to download\\: "
-        f'\\[`1`\\-`{len(art["links"])}`\\]\\.',
-    )
-
-
 def pixiv_parse(
     update: Update,
     context: CallbackContext,
@@ -948,13 +934,6 @@ def pixiv_parse(
         u = s.get(User, update.effective_chat.id)
         u.last_info = None
         s.commit()
-
-
-def rep(update: Update):
-    return {
-        "chat_id": update.effective_chat.id,
-        "reply_to_message_id": update.effective_message.message_id,
-    }
 
 
 def no_forwarding(
@@ -1182,13 +1161,6 @@ def universal(update: Update, context: CallbackContext) -> None:
         pixiv_parse(update, context, data, text)
     else:
         log.info("No idea what to do with message: '%s'.", text)
-
-
-_mode = [
-    "`\\[` *POST HAS BEEN POSTED\\.* `\\]`",
-    "`\\[` *PLEASE, SPECIFY DATA\\.* `\\]`",
-    "`\\[` *????????????????????\\.* `\\]`",
-]
 
 
 def answer_query(update: Update, context: CallbackContext) -> None:
