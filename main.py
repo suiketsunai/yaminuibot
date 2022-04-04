@@ -881,7 +881,7 @@ def command_style(update: Update, _) -> None:
 def pixiv_parse(
     update: Update,
     context: CallbackContext,
-    data: dict,
+    data: UserData,
     text: str,
 ) -> None:
     notify(update, func="pixiv_parse")
@@ -954,7 +954,7 @@ def pixiv_parse(
 def no_forwarding(
     update: Update,
     context: CallbackContext,
-    data: dict,
+    data: UserData,
     links: list[Link],
 ) -> None:
     notify(update, func="no_forwarding")
@@ -991,7 +991,7 @@ def no_forwarding(
 def just_forwarding(
     update: Update,
     context: CallbackContext,
-    data: dict,
+    data: UserData,
     links: list[Link],
 ) -> None:
     notify(update, func="just_forwarding")
@@ -1069,7 +1069,7 @@ def just_forwarding(
 def just_posting(
     update: Update,
     context: CallbackContext,
-    data: dict,
+    data: UserData,
     links: list[Link],
 ) -> None:
     notify(update, func="just_posting")
