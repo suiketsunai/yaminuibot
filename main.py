@@ -315,6 +315,11 @@ def _reply(update: Update, text: str, **kwargs) -> Message:
     )
 
 
+def _post(update: Update, text: str, cid: int, pid: int, link: str) -> Message:
+    text, post, link = esc(text), esc(get_post_link(cid, pid)), esc(link)
+    _reply(update, f"*[Artwork]({link})* was *[{text}]({post})*\\!")
+
+
 def _error(update: Update, text: str, **kwargs) -> Message:
     """Reply to current message with error
 
@@ -664,6 +669,10 @@ def get_links(media: Link) -> ArtWorkMedia:
     return None
 
 
+def get_post_link(cid: int, post_id: int) -> str:
+    return telegram_link.format(cid=-(cid + 10**12), post_id=post_id)
+
+
 ################################################################################
 # database functions
 ################################################################################
@@ -921,7 +930,13 @@ def pixiv_parse(
             log.debug("Pixiv: Inserted ArtWork: %s.", artwork)
         if data.reply:
             send_media(**com, **rep(update), style=data.pixiv)
-            _reply(update, f'Posted\\!\n{esc(art["link"])}')
+            _post(
+                update,
+                "posted",
+                data.chan_id,
+                post.message_id,
+                art["link"],
+            )
     else:
         if data.reply:
             send_media(**com, **rep(update), style=data.pixiv)
@@ -1027,7 +1042,13 @@ def just_forwarding(
             s.commit()
             log.debug("Forward: Inserted ArtWork: %s.", artwork)
         if data.reply:
-            _reply(update, f"Forwarded\\!\n{esc(link.link)}")
+            _post(
+                update,
+                "forwarded",
+                data.chan_id,
+                post.message_id,
+                art["link"],
+            )
         if data.media:
             if art:
                 if send_media_doc(
@@ -1084,7 +1105,13 @@ def just_posting(
                         s.commit()
                         log.debug("Post: Inserted ArtWork: %s.", artwork)
                     if data.reply:
-                        _reply(update, f'Posted\\!\n{esc(art["link"])}')
+                        _post(
+                            update,
+                            "posted",
+                            data.chan_id,
+                            post.message_id,
+                            art["link"],
+                        )
                     if data.media:
                         send_media_doc(
                             **com,
@@ -1118,7 +1145,13 @@ def just_posting(
                             log.debug("Post: Inserted ArtWork: %s.", artwork)
                         if data.reply:
                             send_media(**com, **rep(update), style=data.pixiv)
-                            _reply(update, f'Posted\\!\n{esc(art["link"])}')
+                            _post(
+                                update,
+                                "posted",
+                                data.chan_id,
+                                post.message_id,
+                                art["link"],
+                            )
                 else:
                     pixiv_save(update, art)
                     continue
@@ -1204,7 +1237,13 @@ def answer_query(update: Update, context: CallbackContext) -> None:
                     s.commit()
                     log.debug("Query: Inserted ArtWork: %s.", artwork)
                 if data.reply:
-                    _reply(update, f'Posted\\!\n{esc(art["link"])}')
+                    _post(
+                        update,
+                        "posted",
+                        data.chan_id,
+                        post.message_id,
+                        art["link"],
+                    )
                 if data.media:
                     send_media_doc(
                         **com,
@@ -1241,7 +1280,13 @@ def answer_query(update: Update, context: CallbackContext) -> None:
                         log.debug("Query: Inserted ArtWork: %s.", artwork)
                     if data.reply:
                         send_media(**com, **rep(update), style=data.pixiv)
-                        _reply(update, f'Posted\\!\n{esc(art["link"])}')
+                        _post(
+                            update,
+                            "posted",
+                            data.chan_id,
+                            post.message_id,
+                            art["link"],
+                        )
                     result = 0
                 else:
                     result = 2
