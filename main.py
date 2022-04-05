@@ -18,7 +18,6 @@ from sqlalchemy.orm import Session
 from telegram import (
     InlineKeyboardMarkup,
     Message,
-    ParseMode,
     Update,
     InputMediaPhoto,
     InlineKeyboardButton,
@@ -37,6 +36,9 @@ from telegram.ext import (
 
 # telegram errors
 from telegram.error import Unauthorized
+
+# telegram constants
+from telegram.constants import PARSEMODE_MARKDOWN_V2 as MDV2
 
 # escaping special markdown characters
 from telegram.utils.helpers import escape_markdown
@@ -75,7 +77,7 @@ from db.migrate_db import migrate_db
 load_dotenv()
 
 # setup loggers
-log = logging.getLogger("yaminuichan.main")
+log = logging.getLogger("yaminuichan.app")
 sys_log = logging.getLogger("yaminuichan.system")
 upl_log = logging.getLogger("yaminuichan.upload")
 
@@ -87,7 +89,15 @@ upl_log = logging.getLogger("yaminuichan.upload")
 esc = partial(escape_markdown, version=2)
 
 
-def rep(update: Update):
+def rep(update: Update) -> dict:
+    """Get current chat and message for bot to reply to
+
+    Args:
+        update (Update): current update
+
+    Returns:
+        dict: current chat and message
+    """
     return {
         "chat_id": update.effective_chat.id,
         "reply_to_message_id": update.effective_message.message_id,
@@ -112,6 +122,18 @@ def _reply(update: Update, text: str, **kwargs) -> Message:
 
 
 def _post(update: Update, text: str, cid: int, pid: int, link: str) -> Message:
+    """Reply to current message with link to posted content
+
+    Args:
+        update (Update): current update
+        text (str): description of action
+        cid (int): channel internal id
+        pid (int): channel post id
+        link (str): content original link
+
+    Returns:
+        Message: Telegram Message
+    """
     text, post, link = esc(text), esc(get_post_link(cid, pid)), esc(link)
     _reply(update, f"*[Artwork]({link})* was *[{text}]({post})*\\!")
 
@@ -134,7 +156,7 @@ def _error(update: Update, text: str, **kwargs) -> Message:
 
 
 def _warn(update: Update, link: Link, **kwargs) -> Message:
-    """Reply to current message
+    """Reply to current message with warning
 
     Args:
         update (Update): current update
@@ -152,19 +174,40 @@ def _warn(update: Update, link: Link, **kwargs) -> Message:
         reply_markup=InlineKeyboardMarkup.from_button(
             InlineKeyboardButton(text="Post!", callback_data="post")
         ),
+        **kwargs,
     )
 
 
 def send_post(
     context: CallbackContext,
-    info: dict,
+    *,
+    info: dict = None,
+    text: str = None,
     **kwargs,
-):
-    return context.bot.send_message(
-        text=esc(info["link"]),
-        parse_mode=ParseMode.MARKDOWN_V2,
-        **kwargs,
-    )
+) -> Message | None:
+    """Send post to channel
+
+    Args:
+        context (CallbackContext): current context
+        info (dict): art media dictionary
+        text (str): text to send
+
+    Returns:
+        Message | None: Telegram Message
+    """
+    if info:
+        return context.bot.send_message(
+            text=esc(info["link"]),
+            parse_mode=MDV2,
+            **kwargs,
+        )
+    if text:
+        return context.bot.send_message(
+            text=text,
+            parse_mode=MDV2,
+            **kwargs,
+        )
+    return log.error("Send Post: No text or info supplied.")
 
 
 def send_media(
@@ -174,7 +217,20 @@ def send_media(
     order: list[int] = None,
     style: int = None,
     **kwargs,
-):
+) -> Message | None:
+    """Send media as media group
+
+    Args:
+        context (CallbackContext): current context
+        info (dict): art media dictionary
+        order (list[int], optional): which artworks to upload. Defaults to None.
+        style (int, optional): pixiv sryle. Defaults to None.
+
+    Returns:
+        Message | None: Telegram Message
+    """
+    if not info:
+        return log.error("Send Media: No info supplied.")
     caption = ""
     match style:
         case PixivStyle.IMAGE_LINK:
@@ -186,19 +242,11 @@ def send_media(
             caption = f'[{temp}]({esc(info["link"])})'
         case PixivStyle.INFO_LINK:
             caption = esc(f'{info["desc"]} | {info["user"]}\n{info["link"]}')
-            return context.bot.send_message(
-                text=caption,
-                parse_mode=ParseMode.MARKDOWN_V2,
-                **kwargs,
-            )
+            return send_post(context, text=caption, **kwargs)
         case PixivStyle.INFO_EMBED_LINK:
             temp = esc(f'{info["desc"]} | {info["user"]}\n')
             caption = f'[{temp}]({esc(info["link"])})'
-            return context.bot.send_message(
-                text=caption,
-                parse_mode=ParseMode.MARKDOWN_V2,
-                **kwargs,
-            )
+            return send_post(context, text=caption, **kwargs)
         case _:
             caption = esc(info["link"])
     media = []
@@ -206,7 +254,7 @@ def send_media(
         media.append(InputMediaPhoto(file.read_bytes()))
         file.unlink()
     media[0].caption = caption
-    media[0].parse_mode = ParseMode.MARKDOWN_V2
+    media[0].parse_mode = MDV2
     return context.bot.send_media_group(
         media=media,
         **kwargs,
@@ -220,12 +268,23 @@ def send_media_doc(
     media_filter: list[str] = None,
     order: list[int] = None,
     **kwargs,
-) -> Message:
+) -> Message | None:
+    """Send media as documents
+
+    Args:
+        context (CallbackContext): current context
+        info (dict): art media dictionary
+        media_filter (list[str], optional): types to send. Defaults to None.
+        order (list[int], optional): which artworks to upload. Defaults to None.
+
+    Returns:
+        Message | None: Telegram Message
+    """
     if not info:
-        return log.error("send_media_doc: No info supplied.")
+        return log.error("Send Media Doc: No info supplied.")
     if media_filter and info["media"] not in media_filter:
-        return log.debug("send_media_doc: Didn't pass media filter.")
-    log.debug("send_media_doc: Passed media filter.")
+        return log.debug("Send Media Doc: Didn't pass media filter.")
+    log.debug("Send Media Doc: Passed media filter.")
     for file in download_media(info, order=order):
         context.bot.send_document(
             document=file.read_bytes(),
@@ -247,7 +306,7 @@ def download_media(
     Args:
         info (dict): art media dictionary
         full (bool, optional): yield full size or not. Defaults to True.
-        order (list[int], optional): what artworks to upload. Defaults to None.
+        order (list[int], optional): which artworks to upload. Defaults to None.
 
     Yields:
         Iterator[Path | None]: downloaded file
@@ -337,7 +396,7 @@ def upload_media(info: dict, user: int = 0, order: list[int] = None) -> None:
     Args:
         info (dict): art media dictionary
         user (int, optional): telegram user id. Defaults to 0.
-        order (list[int], optional): what artworks to upload. Defaults to None.
+        order (list[int], optional): which artworks to upload. Defaults to None.
     """
     if user != upl_dict["user"]:
         return  # silently exit
@@ -397,21 +456,21 @@ def notify(
     """
     if command:
         sys_log.info(
-            "[%s] '%s' called command: '%s'.",
+            "[%d] '%s' called command: %r.",
             update.effective_chat.id,
             update.effective_chat.full_name or update.effective_chat.title,
             command,
         )
     if func:
-        sys_log.info(
-            "[%s] '%s' called function: '%s'.",
+        sys_log.debug(
+            "[%d] '%s' called function: %r.",
             update.effective_chat.id,
             update.effective_chat.full_name or update.effective_chat.title,
             func,
         )
     if art:
         sys_log.info(
-            "[%s] '%s' received content: [%s/%s] '%s' by [%s/@%s] '%s' | %s.",
+            "[%d] '%s' received content: [%d/%s] %r by [%d/@%s] %r | %s.",
             update.effective_chat.id,
             update.effective_chat.full_name or update.effective_chat.title,
             art.id,
@@ -424,7 +483,7 @@ def notify(
         )
     if toggle:
         sys_log.info(
-            "[%s] '%s' called toggler: '%s' is now %s.",
+            "[%d] '%s' called toggler: %r is now %s.",
             update.effective_chat.id,
             update.effective_chat.full_name or update.effective_chat.title,
             toggle[0],
@@ -432,8 +491,16 @@ def notify(
         )
 
 
-def channel_check(update: Update, context: CallbackContext) -> int:
-    """Checks if channel is a valid choice"""
+def channel_check(update: Update, context: CallbackContext) -> int | None:
+    """Checks if channel is a valid choice
+
+    Args:
+        update (Update): current update
+        context (CallbackContext): current context
+
+    Returns:
+        int | None: ConversationHandler state
+    """
     mes = update.effective_message
     if channel := mes.forward_from_chat:
         if channel.type == "supergroup":
@@ -501,6 +568,15 @@ def channel_check(update: Update, context: CallbackContext) -> int:
 
 
 def check_original(aid: int, type: int) -> bool:
+    """Check if artwork is already in database
+
+    Args:
+        aid (int): artwork id
+        type (int): artwork type
+
+    Returns:
+        bool: is artwork original
+    """
     with Session(engine) as s:
         return not bool(
             s.query(ArtWork)
@@ -511,6 +587,15 @@ def check_original(aid: int, type: int) -> bool:
 
 
 def get_other_links(aid: int, type: int) -> list[str]:
+    """Get already posted instances of artwork
+
+    Args:
+        aid (int): artwork id
+        type (int): artwork type
+
+    Returns:
+        list[str]: list of links to posts
+    """
     with Session(engine) as s:
         return [
             telegram_link.format(**item)
@@ -525,7 +610,15 @@ def get_other_links(aid: int, type: int) -> list[str]:
         ]
 
 
-def get_user_data(update: Update):
+def get_user_data(update: Update) -> UserData | None:
+    """Get current user's current data
+
+    Args:
+        update (Update): current update
+
+    Returns:
+        UserData | None: current user's current data
+    """
     with Session(engine) as s:
         if u := s.get(User, update.effective_chat.id):
             data = UserData(
@@ -564,12 +657,19 @@ def toggler(update: Update, attr: str) -> bool:
         return state
 
 
-def pixiv_save(update: Update, art: dict):
-    # add last_info to current user
+def pixiv_save(update: Update, art: dict) -> None:
+    """Save current art media data to user's last_info
+
+    Args:
+        update (Update): current update
+        art (dict): art media dictionary
+    """
+    notify(update, func="pixiv_save")
     with Session(engine) as s:
         u = s.get(User, update.effective_chat.id)
         u.last_info = art
         s.commit()
+    log.debug("Added last info to user [%d].", update.effective_chat.id)
     # prompt user to choose illustrations
     _reply(
         update,
@@ -724,9 +824,12 @@ def pixiv_parse(
             ids += range(n1, n2 + 1)
     ids = list(dict.fromkeys(ids))
     if len(ids) > 10:
-        return _error(update, "You *can\\'t* choose more than 10 files\\!")
+        _error(update, "You *can\\'t* choose more than 10 files\\!")
+        return log.error("Pixiv Parse: Can't choose more than 10 files.")
     if max(ids) > count or min(ids) < 1:
-        return _error(update, f"*Not within* range: \\[`1`\\-`{count}`\\]\\!")
+        _error(update, f"*Not within* range: \\[`1`\\-`{count}`\\]\\!")
+        return log.error("Pixiv Parse: Not within range: [1-%d].", count)
+    log.debug("Pixiv: Chosen artworks: %r.", ids)
     # save for reuse
     com = {"context": context, "info": art, "order": ids}
     if data.forward:
@@ -739,6 +842,7 @@ def pixiv_parse(
         if not post:
             _error(update, "Coudn't post\\!")
             return log.error("Pixiv: Couldn't post.")
+        log.info("Pixiv Parse: Successfully posted to channel.")
         if not isinstance(post, Message):
             post = post[0]
         artwork.update(
@@ -854,7 +958,7 @@ def just_forwarding(
         if src := update.effective_message.forward_from_chat:
             if c := s.get(Channel, src.id):
                 artwork["forwarded_channel_id"] = c.id
-                log.info("Forward: Source: '%s' [%s].", c.name, c.cid)
+                log.info("Forward: Source: %r [%d].", c.name, c.cid)
                 if c.id == data.chan_id:
                     log.error("Forward: Self-forwarding is no allowed.")
                     return _error(update, "You shouldn't *self\\-forward*\\!")
@@ -1062,7 +1166,7 @@ def answer_query(update: Update, context: CallbackContext) -> None:
         # twitter links
         case LinkType.TWITTER:
             if post := send_post(**com, chat_id=data.chan_id):
-                log.info("Query: Successfully forwarded to channel.")
+                log.info("Query: Successfully posted to channel.")
                 artwork.update(
                     {
                         "post_id": post.message_id,
@@ -1104,7 +1208,7 @@ def answer_query(update: Update, context: CallbackContext) -> None:
                 ):
                     if not isinstance(post, Message):
                         post = post[0]
-                    log.info("Query: Successfully forwarded to channel.")
+                    log.info("Query: Successfully posted to channel.")
                     artwork.update(
                         {
                             "post_id": post.message_id,
@@ -1134,14 +1238,14 @@ def answer_query(update: Update, context: CallbackContext) -> None:
     update.effective_message.edit_text(
         f'~This [artwork]({esc(art["link"])}) was already posted\\: {text}~\\.'
         f"\n\n{result_message[result]}",
-        parse_mode=ParseMode.MARKDOWN_V2,
+        parse_mode=MDV2,
     )
     # upload to cloud
     if not result:
         upload_media(art, user=update.effective_chat.id)
 
 
-def handle_post(update: Update, context: CallbackContext) -> None:
+def handle_post(update: Update, _) -> None:
     notify(update, func="handle_post")
     # speed up
     message = update.effective_message
@@ -1150,7 +1254,7 @@ def handle_post(update: Update, context: CallbackContext) -> None:
         # check for caption
         if not (text := message.caption):
             # no text found!
-            return log.error("Universal: No text.")
+            return log.error("Handle Post: No text.")
     if links := formatter(text):
         if len(links) > 1:
             return
@@ -1172,18 +1276,19 @@ def handle_post(update: Update, context: CallbackContext) -> None:
                     .where(ArtWork.post_id == message.message_id)
                     .count()
                 ):
-                    log.info("Already in database. Skipping...")
+                    log.info("Handle Post: Already in database. Skipping...")
                     return
                 if src := message.forward_from_chat:
                     if c := s.get(Channel, src.id):
                         artwork["forwarded_channel_id"] = c.id
-                        log.info("Forward: Source: '%s' [%s].", c.name, c.cid)
+                        log.info("Handle Post: Source: %r [%d].", c.name, c.cid)
                     else:
-                        log.info("Forward: Source: unknown.")
+                        log.info("Handle Post: Source: unknown.")
                 else:
-                    log.info("Forward: Source: not a channel.")
+                    log.info("Handle Post: Source: not a channel.")
                 s.add(ArtWork(**artwork))
                 s.commit()
+                log.debug("Handle Post: Inserted ArtWork: %s.", artwork)
     return
 
 
