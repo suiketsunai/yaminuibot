@@ -80,4 +80,4 @@ telegram_link = "t.me/c/{cid}/{post_id}"
 file_pattern = r".*\/(?P<name>.*?)((\?.*format\=)|(\.))(?P<format>\w+).*$"
 
 # twitter link id
-twi_id = r"(?:.*\/(?P<id>.+)(?:\.|\?f))"
+twitter_regex = r"(?:.*\/(?P<id>.+)(?:\.|\?f))"
