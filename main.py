@@ -7,15 +7,11 @@ import base64
 import logging
 
 from pathlib import Path
-from datetime import datetime
 from functools import partial
 from dataclasses import dataclass
 
 # working with env
 from dotenv import load_dotenv
-
-# reading setings
-import tomli
 
 # working with database
 from sqlalchemy.orm import Session, aliased
@@ -79,10 +75,6 @@ from extra.twitter import get_twitter_links
 
 # pixiv
 from extra.pixiv import get_pixiv_links
-
-# current timestamp & this file directory
-date_run = datetime.now()
-file_dir = Path(__file__).parent
 
 # load .env file & get config
 load_dotenv()
@@ -1466,4 +1458,6 @@ def main() -> None:
 
 
 if __name__ == "__main__":
+    root_log.info("Starting the bot...")
+    # start the bot
     main()
