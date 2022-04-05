@@ -22,7 +22,7 @@ from extra.twitter import get_twitter_links
 from extra.pixiv import get_pixiv_links
 
 # get logger
-log = logging.getLogger("yaminui.helper")
+log = logging.getLogger("yaminuichan.helper")
 
 
 def extract_media_ids(art: dict) -> list[str]:
