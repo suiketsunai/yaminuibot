@@ -65,7 +65,7 @@ from db.models import User, Channel, ArtWork
 from extra import *
 
 # settings
-from extra.loggers import root_log
+from extra.loggers import root_log, file_handler
 
 # namedtuples
 from extra.namedtuples import ArtWorkMedia, Link
@@ -551,6 +551,15 @@ def upload_media(info: dict, user: int = 0, order: list[int] = None) -> None:
                 kind = "animated gif"
         upload(file, upl_dict["media"], kind)
         file.unlink()
+
+
+def upload_log() -> None:
+    """Upload log file to cloud"""
+    if not file_handler:
+        return  # silently exit
+    if not upl_dict["log"]:
+        return upl_log.error("No log upload link.")
+    upload(Path(file_handler.baseFilename), upl_dict["log"], "log file")
 
 
 def forward(update: Update, channel: int) -> Message:
@@ -1520,3 +1529,5 @@ if __name__ == "__main__":
     root_log.info("Starting the bot...")
     # start the bot
     main()
+    # upload log
+    upload_log()
