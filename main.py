@@ -82,7 +82,8 @@ load_dotenv()
 # upload dictionary
 upl_dict = {
     "user": int(os.getenv("USER_ID") or 0),
-    "link": os.getenv("GG_URL"),
+    "media": os.getenv("GD_MEDIA"),
+    "log": os.getenv("GD_LOG"),
 }
 
 # setup loggers
@@ -422,7 +423,7 @@ def send_media_doc(
     if media_filter and info["media"] not in media_filter:
         return log.debug("send_media_doc: Didn't pass media filter.")
     log.debug("send_media_doc: Passed media filter.")
-    for file in download_media(info, full=True, order=order):
+    for file in download_media(info, order=order):
         context.bot.send_document(
             document=file.read_bytes(),
             filename=file.name,
@@ -435,11 +436,21 @@ def download_media(
     info: dict,
     *,
     full: bool = True,
-    user: int = 0,
     order: list[int] = None,
-) -> list[Path] | None:
+) -> Path | None:
+    """Download files using art media dictionary depending on order list and
+    yield downloaded files in full size or resized to 1280px at max size
+
+    Args:
+        info (dict): art media dictionary
+        full (bool, optional): yield full size or not. Defaults to True.
+        order (list[int], optional): what artworks to upload. Defaults to None.
+
+    Yields:
+        Iterator[Path | None]: downloaded file
+    """
     if not info:
-        return log.error("download_media: No info supplied.")
+        return log.error("Download Media: No info supplied.")
     if info["type"] == LinkType.PIXIV:
         headers = {
             "user-agent": "PixivIOSApp/7.13.3 (iOS 14.6; iPhone13,2)",
@@ -457,7 +468,6 @@ def download_media(
         links = info["links"]
     else:
         links = info["links"][:10]
-    files = []
     for link in links:
         file = requests.get(
             link,
@@ -466,39 +476,81 @@ def download_media(
         )
         reg = re.search(file_pattern, link)
         if not reg:
-            log.error("download_media: Couldn't get name or format: %s.", link)
+            log.error("Download Media: Couldn't get name or format: %s.", link)
             continue
         name = reg.group("name") + "." + reg.group("format")
-        if user == upl_dict["user"] and upl_dict["link"]:
-            attempt = 1
-            while attempt <= 3:
-                upl_log.info("Uploading file '%s'...", name)
-                r = requests.post(
-                    url=os.getenv("GG_URL"),
-                    params={"name": name},
-                    data=base64.urlsafe_b64encode(file.content),
-                )
-                try:
-                    if r.json()["ok"]:
-                        upl_log.info("Done uploading file '%s'.", name)
-                    else:
-                        upl_log.info("File '%s' already exists.", name)
-                    break
-                except Exception as ex:
-                    upl_log.error("Exception occured: %s", ex)
-                    upl_log.info("Waiting for 3 seconds...")
-                    time.sleep(3)
-                    attempt += 1
-                    upl_log.info("Done. Current attempt: #%s.", attempt)
-            continue
-        image_file = Path(name)
-        image_file.write_bytes(file.content)
+        media_file = Path(name)
+        media_file.write_bytes(file.content)
         if not full:
-            image = Image.open(image_file)
-            image.thumbnail([1280, 1280])
-            image.save(image_file)
-        files.append(image_file)
-    return files
+            try:
+                image = Image.open(media_file)
+                image.thumbnail([1280, 1280])
+                image.save(media_file)
+            except Exception as ex:
+                log.error("Download Media: Exception occured: %s", ex)
+        yield media_file
+
+
+def upload(file: Path, link: str, kind: str = "file") -> None:
+    """Upload file of certain type to Google Drive
+
+    Args:
+        file (Path): file to upload
+        kind (str, optional): file type description. Defaults to "file".
+    """
+    if not (file and isinstance(file, Path) and file.exists()):
+        return upl_log.error("No such file!")
+    if not link:
+        return upl_log.error("No upload link!")
+    UPLOAD_TIMEOUT = 3
+    name, kind = file.name, kind.lower()
+    for attempt in range(3):
+        if attempt:
+            upl_log.info("Waiting for %d seconds...", UPLOAD_TIMEOUT)
+            time.sleep(UPLOAD_TIMEOUT)
+            upl_log.info("Done. Current attempt: #%d.", attempt + 1)
+        upl_log.info("Uploading %s %r...", kind, name)
+        r = requests.post(
+            url=link,
+            params={"name": name},
+            data=base64.urlsafe_b64encode(file.read_bytes()),
+        )
+        try:
+            if r.json()["ok"]:
+                upl_log.info("Done uploading %s %r.", kind, name)
+            else:
+                upl_log.info("%s %r already exists.", kind.capitalize(), name)
+            break
+        except Exception as ex:
+            upl_log.error("Exception occured: %s", ex)
+    else:
+        upl_log.error("Run out of attempts.")
+        upl_log.error("Couldn't upload %s %r.", kind, name)
+
+
+def upload_media(info: dict, user: int = 0, order: list[int] = None) -> None:
+    """Upload images to cloud
+
+    Args:
+        info (dict): art media dictionary
+        user (int, optional): telegram user id. Defaults to 0.
+        order (list[int], optional): what artworks to upload. Defaults to None.
+    """
+    if user != upl_dict["user"]:
+        return  # silently exit
+    if not upl_dict["media"]:
+        return upl_log.error("No media upload link.")
+    for file in download_media(info, order=order):
+        kind = f"file ({file.suffix})"
+        match file.suffix:
+            case ".mp4" | ".mov":
+                kind = "video"
+            case ".jpg" | ".jpeg" | ".png" | ".jiff":
+                kind = "image"
+            case ".gif":
+                kind = "animated gif"
+        upload(file, upl_dict["media"], kind)
+        file.unlink()
 
 
 def forward(update: Update, channel: int) -> Message:
@@ -935,7 +987,7 @@ def pixiv_parse(
             _reply(update, f"Sending files\\.\\.\\.")
         send_media_doc(**com, **rep(update))
     # upload to cloud
-    download_media(info=art, order=ids, user=update.effective_chat.id)
+    upload_media(info=art, order=ids, user=update.effective_chat.id)
     # clean last_info for user
     with Session(engine) as s:
         u = s.get(User, update.effective_chat.id)
@@ -977,7 +1029,7 @@ def no_forwarding(
                     _reply(update, f"Sending a file\\.\\.\\.")
                 send_media_doc(**com)
         # upload to cloud
-        download_media(art, user=update.effective_chat.id)
+        upload_media(art, user=update.effective_chat.id)
 
 
 def just_forwarding(
@@ -1055,7 +1107,7 @@ def just_forwarding(
                 _error(update, "*Media mode*\\: Couldn't get this content\\!")
                 log.warning("Forward: Couldn't reply with media.")
     # upload to cloud
-    download_media(art, user=update.effective_chat.id)
+    upload_media(art, user=update.effective_chat.id)
 
 
 def just_posting(
@@ -1148,7 +1200,7 @@ def just_posting(
                     pixiv_save(update, art)
                     continue
         # upload to cloud
-        download_media(art, user=update.effective_chat.id)
+        upload_media(art, user=update.effective_chat.id)
 
 
 def universal(update: Update, context: CallbackContext) -> None:
@@ -1285,14 +1337,14 @@ def answer_query(update: Update, context: CallbackContext) -> None:
             else:
                 pixiv_save(update, art)
                 result = 1
-    # upload to cloud
-    if not result:
-        download_media(art, user=update.effective_chat.id)
-    return update.effective_message.edit_text(
+    update.effective_message.edit_text(
         f'~This [artwork]({esc(art["link"])}) was already posted\\: {text}~\\.'
         f"\n\n{_mode[result]}",
         parse_mode=ParseMode.MARKDOWN_V2,
     )
+    # upload to cloud
+    if not result:
+        upload_media(art, user=update.effective_chat.id)
 
 
 def handle_post(update: Update, context: CallbackContext) -> None:
