@@ -10,15 +10,9 @@ from sqlalchemy import pool
 # alembic context
 from alembic import context
 
-# working with env
-from dotenv import load_dotenv
-
 # get parent directory
 parent_dir = os.path.abspath(os.getcwd())
 sys.path.append(parent_dir)
-
-# load .env file
-load_dotenv()
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
@@ -28,10 +22,10 @@ config = context.config
 # This line sets up loggers basically.
 fileConfig(config.config_file_name)
 
-# change database URI
-config.set_main_option("sqlalchemy.url", os.environ["SB_CNT"].format(password=os.environ["SB_PSW"]))
+from db import Base, DB_URI
 
-from db import Base
+# change database URI
+config.set_main_option("sqlalchemy.url", DB_URI)
 
 # add your model's MetaData object here
 # for 'autogenerate' support

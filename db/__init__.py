@@ -9,8 +9,11 @@ from sqlalchemy import create_engine
 # load .env file & get config
 load_dotenv()
 
+# database connection string
+DB_URI = os.environ["SB_CNT"].format(password=os.environ["SB_PSW"])
+
 # session settings
 engine = create_engine(
-    os.environ["SB_CNT"].format(password=os.environ["SB_PSW"]),
+    DB_URI,
     future=True,
 )
