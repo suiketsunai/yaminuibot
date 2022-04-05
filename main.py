@@ -2,7 +2,6 @@
 import os
 import re
 import time
-import json
 import base64
 import logging
 
@@ -13,13 +12,7 @@ from functools import partial
 from dotenv import load_dotenv
 
 # working with database
-from sqlalchemy.orm import Session, aliased
-
-# working with timezone
-from dateutil import tz
-
-# parsing datetime
-from dateutil.parser import parse
+from sqlalchemy.orm import Session
 
 # telegram core bot api
 from telegram import (
@@ -75,98 +68,16 @@ from extra.helpers import formatter, get_links, get_post_link, extract_media_ids
 # dumping db
 from db.dump_db import dump_db
 
-# load .env file & get config
+# migrating db
+from db.migrate_db import migrate_db
+
+# load .env file
 load_dotenv()
 
 # setup loggers
 log = logging.getLogger("yaminuichan.main")
 sys_log = logging.getLogger("yaminuichan.system")
 upl_log = logging.getLogger("yaminuichan.upload")
-
-################################################################################
-# file operations functions
-################################################################################
-
-
-def check_message(message: dict) -> list[Link]:
-    """Check if message has appropriate link in it
-
-    Args:
-        message (dict): Telegram channel message from exported json
-
-    Returns:
-        list[Link]: list of Links
-    """
-    result = []
-    if message["type"] == "message":
-        for item in message["text"]:
-            if isinstance(item, dict) and item.get("type") == "link":
-                result += formatter(item["text"])
-    return result
-
-
-def migrate_db() -> None:
-    """Read exported jsons and insert data in database"""
-    src = Path(".src")
-    users = json.loads((src / "users.json").read_bytes())
-    channels = json.loads((src / "channels.json").read_bytes())
-    # migrate all users and channels
-    with Session(engine) as s:
-        for user in users:
-            s.add(User(**user))
-        s.commit()
-
-        for channel in channels:
-            s.add(Channel(**channel))
-        s.commit()
-    # get directories
-    dirs = [cid for cid in src.iterdir() if cid.is_dir()]
-    with Session(engine) as s:
-        chans = {str(channel.cid): channel for channel in s.query(Channel)}
-    # migrate all artworks
-    for path in dirs:
-        channel = chans[path.name]
-        messages = json.loads((path / "result.json").read_bytes())["messages"]
-        with Session(engine) as s:
-            for message in messages:
-                data = {
-                    "post_id": message["id"],
-                    "post_date": parse(message["date"]).astimezone(tz.tzutc()),
-                    "channel": channel,
-                }
-                for artwork in check_message(message):
-                    data.update({"aid": artwork.id, "type": artwork.type})
-                    if f := message.get("forwarded_from", None):
-                        data.update(
-                            {
-                                "is_forwarded": True,
-                                "is_original": False,
-                                "forwarded_channel": s.query(Channel)
-                                .filter(Channel.name == f)
-                                .first(),
-                            }
-                        )
-                    s.add(ArtWork(**data))
-            channel.last_post = messages[-1]["id"]
-            s.commit()
-    # find all first-posted artworks
-    with Session(engine) as s:
-        artl, artr = aliased(ArtWork), aliased(ArtWork)
-        q = (
-            s.query(artr)
-            .join(
-                artl,
-                (artl.aid == artr.aid)
-                & (artl.type == artr.type)
-                & (artl.id != artr.id)
-                & (artl.post_date < artr.post_date),
-            )
-            .order_by(artl.type, artl.aid, artl.post_date)
-        )
-        for post in q.all():
-            post.is_original = False
-        s.commit()
-
 
 ################################################################################
 # telegram bot helpers section
