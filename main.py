@@ -8,7 +8,6 @@ import logging
 
 from pathlib import Path
 from functools import partial
-from dataclasses import dataclass
 
 # working with env
 from dotenv import load_dotenv
@@ -78,13 +77,6 @@ from db.dump_db import dump_db
 
 # load .env file & get config
 load_dotenv()
-
-# upload dictionary
-upl_dict = {
-    "user": int(os.getenv("USER_ID") or 0),
-    "media": os.getenv("GD_MEDIA"),
-    "log": os.getenv("GD_LOG"),
-}
 
 # setup loggers
 log = logging.getLogger("yaminuichan.main")
@@ -179,36 +171,6 @@ def migrate_db() -> None:
 ################################################################################
 # telegram bot helpers section
 ################################################################################
-
-# states
-states = (CHANNEL,) = map(chr, range(1))
-
-# helper dictionary
-_switch = {
-    True: "enabled",
-    False: "disabled",
-}
-
-
-# callback query result
-_mode = [
-    "`\\[` *POST HAS BEEN POSTED\\.* `\\]`",
-    "`\\[` *PLEASE, SPECIFY DATA\\.* `\\]`",
-    "`\\[` *????????????????????\\.* `\\]`",
-]
-
-
-# user data dictionary
-@dataclass
-class UserData:
-    forward: bool
-    reply: bool
-    media: bool
-    pixiv: int
-    info: dict
-    chan: Channel = None
-    chan_id: int = 0
-
 
 # escaping markdown v2
 esc = partial(escape_markdown, version=2)
@@ -555,7 +517,7 @@ def notify(
             update.effective_chat.id,
             update.effective_chat.full_name or update.effective_chat.title,
             toggle[0],
-            _switch[toggle[1]],
+            switcher[toggle[1]],
         )
 
 
@@ -666,7 +628,7 @@ def get_user_data(update: Update):
                 if not (channel := u.channel):
                     _error(update, "You have no channel\\! Send /channel\\.")
                     return None
-                data.chan, data.chan_id = channel, channel.id
+                data.chan_id = channel.id
             return data
         _error(update, "The bot doesn\\'t know you\\! Send /start\\.")
         return None
@@ -772,7 +734,7 @@ def command_forward(update: Update, _) -> None:
     notify(update, command="/forward")
     _reply(
         update,
-        f"Forwarding mode is *{_switch[toggler(update, 'forward_mode')]}*\\.",
+        f"Forwarding mode is *{switcher[toggler(update, 'forward_mode')]}*\\.",
     )
 
 
@@ -781,7 +743,7 @@ def command_reply(update: Update, _) -> None:
     notify(update, command="/reply")
     _reply(
         update,
-        f"Replying mode is *{_switch[toggler(update, 'reply_mode')]}*\\.",
+        f"Replying mode is *{switcher[toggler(update, 'reply_mode')]}*\\.",
     )
 
 
@@ -790,7 +752,7 @@ def command_media(update: Update, _) -> None:
     notify(update, command="/media")
     _reply(
         update,
-        f"Media mode is *{_switch[toggler(update, 'media_mode')]}*\\.",
+        f"Media mode is *{switcher[toggler(update, 'media_mode')]}*\\.",
     )
 
 
@@ -857,7 +819,11 @@ def pixiv_parse(
     # save for reuse
     com = {"context": context, "info": art, "order": ids}
     if data.forward:
-        artwork = {"aid": art["id"], "type": art["type"], "channel": data.chan}
+        artwork = {
+            "aid": art["id"],
+            "type": art["type"],
+            "channel_id": data.chan_id,
+        }
         post = send_media(**com, style=data.pixiv, chat_id=data.chan_id)
         if not post:
             _error(update, "Coudn't post\\!")
@@ -960,7 +926,11 @@ def just_forwarding(
         return _error(update, "Only *one link* is allowed for forwarding\\!")
     # and so there's one link
     link = links[0]
-    artwork = {"aid": link.id, "type": link.type, "channel": data.chan}
+    artwork = {
+        "aid": link.id,
+        "type": link.type,
+        "channel_id": data.chan_id,
+    }
     # can be ignored for this one
     if not (art := get_links(link)):
         log.warning("Forward: Couldn't get content: '%s'.", link.link)
@@ -1034,7 +1004,11 @@ def just_posting(
             continue
         notify(update, art=art)
         art = art._asdict()
-        artwork = {"aid": link.id, "type": link.type, "channel": data.chan}
+        artwork = {
+            "aid": link.id,
+            "type": link.type,
+            "channel_id": data.chan_id,
+        }
         artwork.update({"is_original": True, "is_forwarded": False})
         com = {"context": context, "info": art}
         match link.type:
@@ -1167,7 +1141,11 @@ def answer_query(update: Update, context: CallbackContext) -> None:
     notify(update, art=art)
     art = art._asdict()
     com = {"context": context, "info": art}
-    artwork = {"aid": art["id"], "type": art["type"], "channel": data.chan}
+    artwork = {
+        "aid": art["id"],
+        "type": art["type"],
+        "channel_id": data.chan_id,
+    }
     artwork.update({"is_original": False, "is_forwarded": False})
     match art["type"]:
         # twitter links
@@ -1244,7 +1222,7 @@ def answer_query(update: Update, context: CallbackContext) -> None:
                 result = 1
     update.effective_message.edit_text(
         f'~This [artwork]({esc(art["link"])}) was already posted\\: {text}~\\.'
-        f"\n\n{_mode[result]}",
+        f"\n\n{result_message[result]}",
         parse_mode=ParseMode.MARKDOWN_V2,
     )
     # upload to cloud
@@ -1270,11 +1248,11 @@ def handle_post(update: Update, context: CallbackContext) -> None:
             artwork = {
                 "aid": link.id,
                 "type": link.type,
+                "channel_id": update.effective_chat.id,
                 "is_original": check_original(link.id, link.type),
                 "is_forwarded": bool(message.forward_date),
                 "post_id": message.message_id,
                 "post_date": message.date,
-                "channel_id": update.effective_chat.id,
             }
             with Session(engine) as s:
                 if (
