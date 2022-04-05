@@ -70,11 +70,8 @@ from extra.loggers import root_log, file_handler
 # namedtuples
 from extra.namedtuples import ArtWorkMedia, Link
 
-# twitter
-from extra.twitter import get_twitter_links
-
-# pixiv
-from extra.pixiv import get_pixiv_links
+# helpers
+from extra.helpers import formatter, get_links, get_post_link, extract_media_ids
 
 # dumping db
 from db.dump_db import dump_db
@@ -97,36 +94,6 @@ upl_log = logging.getLogger("yaminuichan.upload")
 ################################################################################
 # file operations functions
 ################################################################################
-
-
-def extract_media_ids(art: dict) -> list[str]:
-    if art["type"] == LinkType.TWITTER:
-        return [re.search(twi_id, link).group("id") for link in art["links"]]
-    if art["type"] == LinkType.PIXIV:
-        return [str(art["id"])]
-    return None
-
-
-def formatter(query: str) -> list[Link]:
-    """Exctract and format links in text
-
-    Args:
-        query (str): text
-
-    Returns:
-        list[Link]: list of Links
-    """
-    if not query:
-        return None
-    response = []
-    for re_key, re_type in link_dict.items():
-        for link in re.finditer(re_type["re"], query):
-            # dictionary keys = format args
-            _link = re_type["link"].format(**link.groupdict())
-            log.info("Received %s link: '%s'.", re_key, _link)
-            # add to response list
-            response.append(Link(re_type["type"], _link, int(link.group("id"))))
-    return response
 
 
 def check_message(message: dict) -> list[Link]:
@@ -653,40 +620,6 @@ def channel_check(update: Update, context: CallbackContext) -> int:
             return log.error("Channel: The bot was kicked from this channel.")
     _error(update, "Please, *forward* a message from *your channel*\\.")
     return log.error("Channel: This message is from a user.")
-
-
-def get_file_size(link: str, session: requests.Session = None) -> int:
-    """Gets file size
-
-    Args:
-        link (str): downloadable file
-
-    Returns:
-        int: size of file
-    """
-    if not session:
-        session = requests
-    r = session.head(
-        url=link,
-        headers=fake_headers,
-        allow_redirects=True,
-    )
-    if r.ok and (size := r.headers.get("Content-Length", None)):
-        return int(size)
-    return 0
-
-
-def get_links(media: Link) -> ArtWorkMedia:
-    if media.type == LinkType.TWITTER:
-        return get_twitter_links(media.id)
-    if media.type == LinkType.PIXIV:
-        return get_pixiv_links(media.id)
-    log.warning("Error: Unknown media type: %s.", media.type)
-    return None
-
-
-def get_post_link(cid: int, post_id: int) -> str:
-    return telegram_link.format(cid=-(cid + 10**12), post_id=post_id)
 
 
 ################################################################################
