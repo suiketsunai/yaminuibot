@@ -1,4 +1,13 @@
+import os
 import re
+
+from dataclasses import dataclass
+
+# working with env
+from dotenv import load_dotenv
+
+# load .env file
+load_dotenv()
 
 # pixiv styles
 class PixivStyle:
@@ -58,9 +67,31 @@ link_dict = {
     },
 }
 
+# user data dictionary
+@dataclass
+class UserData:
+    forward: bool
+    reply: bool
+    media: bool
+    pixiv: int
+    info: dict
+    chan_id: int = 0
+
+
+# upload dictionary
+upl_dict = {
+    "user": int(os.getenv("USER_ID") or 0),
+    "media": os.getenv("GD_MEDIA"),
+    "log": os.getenv("GD_LOG"),
+}
+
 ################################################################################
 # hardcode
 ################################################################################
+
+# states
+states = (CHANNEL,) = map(chr, range(1))
+
 
 # fake headers
 fake_headers = {
@@ -68,6 +99,20 @@ fake_headers = {
     "Accept": "*/*",
     "Accept-Language": "en-US,en;q=0.5",
 }
+
+
+# helper dictionary
+switcher = {
+    True: "enabled",
+    False: "disabled",
+}
+
+# callback query result
+result_message = [
+    "`\\[` *POST HAS BEEN POSTED\\.* `\\]`",
+    "`\\[` *PLEASE, SPECIFY DATA\\.* `\\]`",
+    "`\\[` *????????????????????\\.* `\\]`",
+]
 
 # pixiv regex
 pixiv_regex = re.compile(r"^((?:\d+)(?:-\d+)?[.,\s]*){1,10}$")
