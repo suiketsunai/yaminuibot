@@ -76,6 +76,9 @@ from extra.twitter import get_twitter_links
 # pixiv
 from extra.pixiv import get_pixiv_links
 
+# dumping db
+from db.dump_db import dump_db
+
 # load .env file & get config
 load_dotenv()
 
@@ -102,46 +105,6 @@ def extract_media_ids(art: dict) -> list[str]:
     if art["type"] == LinkType.PIXIV:
         return [str(art["id"])]
     return None
-
-
-def row2dict(row) -> dict:
-    """Convert table row to dictionary
-
-    Args:
-        row (_type_): a row of table
-
-    Returns:
-        dict: row as dictionary
-    """
-    return {
-        column.name: getattr(row, column.name)
-        for column in row.__table__.columns
-    }
-
-
-def dumper(table, filename: str) -> None:
-    """Helper function for dumping Tables into files
-
-    Args:
-        table (_type_): Table name for exporting
-        filename (str): name for file to dump Table in
-    """
-    src = Path(".src")
-    with Session(engine) as s:
-        (src / filename).with_suffix(".json").write_text(
-            json.dumps(
-                [row2dict(obj) for obj in s.query(table)],
-                indent=4,
-                default=str,
-            )
-        )
-
-
-def dump_db() -> None:
-    """Dump database as it is"""
-    dumper(User, "users")
-    dumper(Channel, "channels")
-    dumper(ArtWork, "artworks")
 
 
 def formatter(query: str) -> list[Link]:
