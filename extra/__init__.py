@@ -75,7 +75,16 @@ class UserData:
     media: bool
     pixiv: int
     info: dict
-    chan_id: int = 0
+    chan: int = 0
+
+
+# telegram bot states
+class BotState:
+    states = (CHANNEL,) = map(chr, range(1))
+
+    @classmethod
+    def validate(cls, value: chr):
+        return value in cls.types
 
 
 # upload dictionary
@@ -88,10 +97,6 @@ upl_dict = {
 ################################################################################
 # hardcode
 ################################################################################
-
-# states
-states = (CHANNEL,) = map(chr, range(1))
-
 
 # fake headers
 fake_headers = {

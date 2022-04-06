@@ -11,10 +11,10 @@ from pixivpy3 import AppPixivAPI
 # http requests
 import requests
 
-# import extra info
+# link types, link dictionary
 from extra import LinkType, link_dict
 
-# import ArtWorkMedia
+# ArtWorkMedia
 from extra.namedtuples import ArtWorkMedia
 
 # load .env file

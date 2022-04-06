@@ -9,7 +9,7 @@ import tweepy
 # http requests
 import requests
 
-# import extra info
+# link types, link dictionary, fake headers
 from extra import LinkType, link_dict, fake_headers
 
 # import ArtWorkMedia

@@ -1,9 +1,10 @@
 import re
 import logging
 
+# http requests
 import requests
 
-# import pixiv styles and link types
+# link types, link dictionary, fake headers, expressions
 from extra import (
     LinkType,
     link_dict,
