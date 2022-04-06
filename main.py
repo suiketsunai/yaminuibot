@@ -1,8 +1,6 @@
 """Main module"""
 import os
 import re
-import time
-import base64
 import logging
 
 from pathlib import Path
@@ -43,12 +41,6 @@ from telegram.constants import PARSEMODE_MARKDOWN_V2 as MDV2
 # escaping special markdown characters
 from telegram.utils.helpers import escape_markdown
 
-# http requests
-import requests
-
-# working with images
-from PIL import Image
-
 # database engine
 from db import engine
 
@@ -59,13 +51,19 @@ from db.models import User, Channel, ArtWork
 from extra import *
 
 # settings
-from extra.loggers import root_log, file_handler
+from extra.loggers import root_log
 
 # namedtuples
 from extra.namedtuples import ArtWorkMedia, Link
 
 # helpers
 from extra.helpers import formatter, get_links, get_post_link, extract_media_ids
+
+# downloading media
+from extra.download import download_media
+
+# uploading media
+from extra.upload import upload_media, upload_log
 
 # dumping db
 from db.dump_db import dump_db
@@ -79,7 +77,6 @@ load_dotenv()
 # setup loggers
 log = logging.getLogger("yaminuichan.app")
 sys_log = logging.getLogger("yaminuichan.system")
-upl_log = logging.getLogger("yaminuichan.upload")
 
 ################################################################################
 # telegram bot helpers section
@@ -292,136 +289,6 @@ def send_media_doc(
             **kwargs,
         )
         file.unlink()
-
-
-def download_media(
-    info: dict,
-    *,
-    full: bool = True,
-    order: list[int] = None,
-) -> Path | None:
-    """Download files using art media dictionary depending on order list and
-    yield downloaded files in full size or resized to 1280px at max size
-
-    Args:
-        info (dict): art media dictionary
-        full (bool, optional): yield full size or not. Defaults to True.
-        order (list[int], optional): which artworks to upload. Defaults to None.
-
-    Yields:
-        Iterator[Path | None]: downloaded file
-    """
-    if not info:
-        return log.error("Download Media: No info supplied.")
-    if info["type"] == LinkType.PIXIV:
-        headers = {
-            "user-agent": "PixivIOSApp/7.13.3 (iOS 14.6; iPhone13,2)",
-            "app-os-version": "14.6",
-            "app-os": "ios",
-            "referer": "https://www.pixiv.net/",
-            "referrer-policy": "strict-origin-when-cross-origin",
-        }
-    else:
-        headers = fake_headers
-    links = []
-    if order:
-        links = [info["links"][index - 1] for index in order]
-    elif len(info["links"]) <= 10:
-        links = info["links"]
-    else:
-        links = info["links"][:10]
-    for link in links:
-        file = requests.get(
-            link,
-            headers=headers,
-            allow_redirects=True,
-        )
-        reg = re.search(file_pattern, link)
-        if not reg:
-            log.error("Download Media: Couldn't get name or format: %s.", link)
-            continue
-        name = reg.group("name") + "." + reg.group("format")
-        media_file = Path(name)
-        media_file.write_bytes(file.content)
-        if not full:
-            try:
-                image = Image.open(media_file)
-                image.thumbnail([1280, 1280])
-                image.save(media_file)
-            except Exception as ex:
-                log.error("Download Media: Exception occured: %s", ex)
-        yield media_file
-
-
-def upload(file: Path, link: str, kind: str = "file") -> None:
-    """Upload file of certain type to Google Drive
-
-    Args:
-        file (Path): file to upload
-        kind (str, optional): file type description. Defaults to "file".
-    """
-    if not (file and isinstance(file, Path) and file.exists()):
-        return upl_log.error("No such file!")
-    if not link:
-        return upl_log.error("No upload link!")
-    UPLOAD_TIMEOUT = 3
-    name, kind = file.name, kind.lower()
-    for attempt in range(3):
-        if attempt:
-            upl_log.info("Waiting for %d seconds...", UPLOAD_TIMEOUT)
-            time.sleep(UPLOAD_TIMEOUT)
-            upl_log.info("Done. Current attempt: #%d.", attempt + 1)
-        upl_log.info("Uploading %s %r...", kind, name)
-        r = requests.post(
-            url=link,
-            params={"name": name},
-            data=base64.urlsafe_b64encode(file.read_bytes()),
-        )
-        try:
-            if r.json()["ok"]:
-                upl_log.info("Done uploading %s %r.", kind, name)
-            else:
-                upl_log.info("%s %r already exists.", kind.capitalize(), name)
-            break
-        except Exception as ex:
-            upl_log.error("Exception occured: %s", ex)
-    else:
-        upl_log.error("Run out of attempts.")
-        upl_log.error("Couldn't upload %s %r.", kind, name)
-
-
-def upload_media(info: dict, user: int = 0, order: list[int] = None) -> None:
-    """Upload images to cloud
-
-    Args:
-        info (dict): art media dictionary
-        user (int, optional): telegram user id. Defaults to 0.
-        order (list[int], optional): which artworks to upload. Defaults to None.
-    """
-    if user != upl_dict["user"]:
-        return  # silently exit
-    if not upl_dict["media"]:
-        return upl_log.error("No media upload link.")
-    for file in download_media(info, order=order):
-        kind = f"file ({file.suffix})"
-        match file.suffix:
-            case ".mp4" | ".mov":
-                kind = "video"
-            case ".jpg" | ".jpeg" | ".png" | ".jiff":
-                kind = "image"
-            case ".gif":
-                kind = "animated gif"
-        upload(file, upl_dict["media"], kind)
-        file.unlink()
-
-
-def upload_log() -> None:
-    """Upload log file to cloud"""
-    if not file_handler:
-        return  # silently exit
-    if not upl_dict["log"]:
-        return upl_log.error("No log upload link.")
-    upload(Path(file_handler.baseFilename), upl_dict["log"], "log file")
 
 
 def forward(update: Update, channel: int) -> Message:
