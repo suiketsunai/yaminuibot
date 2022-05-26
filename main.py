@@ -849,7 +849,7 @@ def just_forwarding(
                 "forwarded",
                 data.chan,
                 post.message_id,
-                art["link"],
+                art["link"] if art else link.link,
             )
         if data.media:
             if art:
