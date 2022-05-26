@@ -117,8 +117,9 @@ def get_twitter_links(tweet_id: int) -> ArtWorkMedia:
     )
     log.debug("Response: %s.", res)
     if error := res.errors:
-        log.error("%s: %s", error[0]["title"], error[0]["detail"])
-        return None
+        return log.error("%s: %s", error[0]["title"], error[0]["detail"])
+    if "media" not in res.includes:
+        return log.error("No media in tweet!")
     media = [media for media in res.includes["media"]]
     user = res.includes["users"][0]
     kind = media[0].type
