@@ -22,15 +22,15 @@ config = context.config
 # This line sets up loggers basically.
 fileConfig(config.config_file_name)
 
-from db import Base, DB_URI
+# import connection URI
+from db import DB_URI
 
 # change database URI
 config.set_main_option("sqlalchemy.url", DB_URI)
 
-# add your model's MetaData object here
-# for 'autogenerate' support
-# from myapp import mymodel
-# target_metadata = mymodel.Base.metadata
+# import Base from models
+from db.models import Base
+
 target_metadata = Base.metadata
 
 # other values from the config, defined by the needs of env.py,
