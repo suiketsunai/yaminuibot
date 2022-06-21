@@ -9,6 +9,7 @@ from sqlalchemy import (
     String,
     Boolean,
     JSON,
+    ARRAY,
 )
 from sqlalchemy.orm import (
     relationship,
@@ -55,24 +56,26 @@ class Channel(Base):
     link = Column(String)
     # if bot is admin
     is_admin = Column(Boolean, default=False, nullable=False)
+
     # RL: 1-1 Admin with Channels
     admin = relationship("User", back_populates="channel")
     # FK: admin user
     admin_id = Column(BigInteger, ForeignKey("user.id"))
-    # last post number
-    last_post = Column(BigInteger)
-    # RL: 1-M Channnel with artworks
-    artworks = relationship(
-        "ArtWork",
+
+    # RL: 1-M Channnel posts
+    posts = relationship(
+        "Post",
         back_populates="channel",
-        foreign_keys="ArtWork.channel_id",
+        foreign_keys="Post.channel_id",
     )
+
     # RL: 1-M Channnel reposts
     reposts = relationship(
-        "ArtWork",
+        "Post",
         back_populates="forwarded_channel",
-        foreign_keys="ArtWork.forwarded_channel_id",
+        foreign_keys="Post.forwarded_channel_id",
     )
+
     # if channel was deleted
     is_deleted = Column(Boolean, default=False, nullable=False)
 
@@ -94,8 +97,10 @@ class User(Base):
     full_name = Column(String)
     # nick name if available
     nick_name = Column(String)
+
     # RL: 1-1 Admin with Channel
     channel = relationship("Channel", back_populates="admin", uselist=False)
+
     # enable posting video and gifs
     media_mode = Column(Boolean, default=False, nullable=False)
     # enable replying to sent links?
@@ -126,12 +131,66 @@ class User(Base):
     is_deleted = Column(Boolean, default=False, nullable=False)
 
 
+class Post(Base):
+    """Table for storing channel post with artwork data"""
+
+    __tablename__ = "post"
+    # post record id
+    id = Column(BigInteger().with_variant(Integer, "sqlite"), primary_key=True)
+
+    # FK: artwork that post contains
+    artwork_id = Column(BigInteger, ForeignKey("artwork.id"), nullable=False)
+    # RL: M-1 Posts with Artwork
+    artwork = relationship(
+        "ArtWork",
+        back_populates="posts",
+        foreign_keys=[artwork_id],
+    )
+
+    # FK: channel that post is from
+    channel_id = Column(BigInteger, ForeignKey("channel.id"), nullable=False)
+    # RL: M-1 Posts in Channel
+    channel = relationship(
+        "Channel",
+        back_populates="posts",
+        foreign_keys=[channel_id],
+    )
+
+    # channel post id
+    post_id = Column(BigInteger, nullable=False)
+    # post datetime
+    post_date = Column(DateTime(timezone=True))
+    # is this post original or not?
+    is_original = Column(Boolean, default=True, nullable=False)
+    # is this post forwarded or not?
+    is_forwarded = Column(Boolean, default=False, nullable=False)
+
+    # FK: channel that post is forwarded from
+    forwarded_channel_id = Column(BigInteger, ForeignKey("channel.id"))
+    # RL: M-1 Forwarded Posts from Channel
+    forwarded_channel = relationship(
+        "Channel",
+        back_populates="reposts",
+        foreign_keys=[forwarded_channel_id],
+    )
+
+    # add unique constraints
+    __table_args__ = (
+        # no double posts
+        UniqueConstraint("channel_id", "post_id", name="uix_post"),
+    )
+
+
 class ArtWork(Base):
     """Table for storing channel post with artwork data"""
 
     __tablename__ = "artwork"
     # artwork record id
     id = Column(BigInteger().with_variant(Integer, "sqlite"), primary_key=True)
+
+    # artwork id
+    aid = Column(BigInteger, nullable=False)
+
     # twitter or pixiv?
     type = Column(Integer, nullable=False)
 
@@ -141,39 +200,18 @@ class ArtWork(Base):
             return value
         raise ValueError(f"Invalid value {value!r} for field {key!r}.")
 
-    # artwork id
-    aid = Column(BigInteger, nullable=False)
-    # FK: channel that post is from
-    channel_id = Column(BigInteger, ForeignKey("channel.id"), nullable=False)
-    # RL: M-1 Artwork in Channels
-    channel = relationship(
-        "Channel",
-        back_populates="artworks",
-        foreign_keys=[channel_id],
+    # RL: 1-M Channnel posts
+    posts = relationship(
+        "Post",
+        back_populates="artwork",
+        foreign_keys="Post.artwork_id",
     )
-    # channel post id
-    post_id = Column(BigInteger, nullable=False)
-    # dote when artwork posted
-    post_date = Column(DateTime(timezone=True))
-    # is this post original or not?
-    is_original = Column(Boolean, default=True, nullable=False)
-    # if forwarded and not in db
-    is_forwarded = Column(Boolean, default=False, nullable=False)
-    # FK: channel that post is forwarded from
-    forwarded_channel_id = Column(BigInteger, ForeignKey("channel.id"))
-    # RL: M-1 Forwarded Artworks from Channel
-    forwarded_channel = relationship(
-        "Channel",
-        back_populates="reposts",
-        foreign_keys=[forwarded_channel_id],
-    )
+
     # files
-    files = Column(JSON)
+    files = Column(ARRAY(String, dimensions=1))
 
     # add unique constraints
     __table_args__ = (
-        # no double posts
-        UniqueConstraint("channel_id", "post_id", name="uix_post"),
         # ideally:
-        # UniqueConstraint("type", "aid", name="uix_artwork"),
+        UniqueConstraint("type", "aid", name="uix_artwork"),
     )
