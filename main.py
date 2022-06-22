@@ -45,7 +45,7 @@ from telegram.utils.helpers import escape_markdown
 from db import engine
 
 # database models
-from db.models import User, Channel, ArtWork
+from db.models import User, Post, Channel, ArtWork
 
 # pixiv styles, link types, user data dataclass
 from extra import PixivStyle, LinkType, UserData
@@ -439,23 +439,18 @@ def channel_check(update: Update, context: CallbackContext) -> int | None:
 ################################################################################
 
 
-def check_original(aid: int, type: int) -> bool:
-    """Check if artwork is already in database
+def get_artwork(aid: int, type: int) -> ArtWork:
+    """Gets artwork if it is already in database
 
     Args:
         aid (int): artwork id
         type (int): artwork type
 
     Returns:
-        bool: is artwork original
+        ArtWork: found artwork
     """
     with Session(engine) as s:
-        return not bool(
-            s.query(ArtWork)
-            .where(ArtWork.aid == aid)
-            .where(ArtWork.type == type)
-            .count()
-        )
+        return s.query(ArtWork).filter_by(aid=aid, type=type).first()
 
 
 def get_other_links(aid: int, type: int) -> list[str]:
@@ -472,11 +467,10 @@ def get_other_links(aid: int, type: int) -> list[str]:
         return [
             telegram_link.format(**item)
             for item in (
-                s.query(ArtWork.post_id, Channel.cid)
-                .where(ArtWork.channel_id == Channel.id)
-                .where(ArtWork.aid == aid)
-                .where(ArtWork.type == type)
-                .order_by(ArtWork.post_date.asc())
+                s.query(Post.post_id, Channel.cid)
+                .filter(Post.channel_id == Channel.id)
+                .filter(Post.artwork == get_artwork(aid, type))
+                .order_by(Post.post_date.asc())
                 .all()
             )
         ]
@@ -704,30 +698,38 @@ def pixiv_parse(
     log.debug("Pixiv: Chosen artworks: %r.", ids)
     # save for reuse
     com = {"context": context, "info": art, "order": ids}
+    post = {
+        "channel_id": data.chan,
+        "is_original": False,
+        "is_forwarded": False,
+    }
+    artwork = {
+        "aid": art["id"],
+        "type": art["type"],
+    }
+    if not (a := get_artwork(**artwork)):
+        notify(update, art=art)
+        artwork["files"] = extract_media_ids(art)
+        a = ArtWork(**artwork)
+        post["is_original"] = True
+        log.debug("Pixiv: ArtWork to insert: %s.", artwork)
     if data.forward:
-        artwork = {
-            "aid": art["id"],
-            "type": art["type"],
-            "channel_id": data.chan,
-        }
-        post = send_media(**com, style=data.pixiv, chat_id=data.chan)
-        if not post:
+        if not (
+            posted := send_media(**com, style=data.pixiv, chat_id=data.chan)
+        ):
             _error(update, "Coudn't post\\!")
             return log.error("Pixiv: Couldn't post.")
         log.info("Pixiv: Successfully posted to channel.")
-        if not isinstance(post, Message):
-            post = post[0]
-        artwork.update(
+        if not isinstance(posted, Message):
+            posted = posted[0]
+        post.update(
             {
-                "post_id": post.message_id,
-                "post_date": post.date,
-                "is_original": check_original(art["id"], art["type"]),
-                "is_forwarded": False,
-                "files": extract_media_ids(art),
+                "post_id": posted.message_id,
+                "post_date": posted.date,
             }
         )
         with Session(engine) as s:
-            s.add(ArtWork(**artwork))
+            s.add(Post(**post, artwork=a))
             s.commit()
             log.debug("Pixiv: Inserted Post: %s.", post)
         if data.reply:
@@ -736,7 +738,7 @@ def pixiv_parse(
                 update,
                 "posted",
                 data.chan,
-                post.message_id,
+                posted.message_id,
                 art["link"],
             )
     else:
@@ -763,7 +765,7 @@ def no_forwarding(
     # process links
     for link in links:
         if not (art := get_links(link)):
-            log.error("Couldn't get content: '%s'.", link.link)
+            log.error("Couldn't get content: %r.", link.link)
             _error(update, "Couldn't get this content\\!")
             continue
         notify(update, art=art)
@@ -813,19 +815,28 @@ def just_forwarding(
         return _error(update, "Only *one link* is allowed for forwarding\\!")
     # and so there's one link
     link = links[0]
-    artwork = {"aid": link.id, "type": link.type, "channel_id": data.chan}
+    post = {
+        "channel_id": data.chan,
+        "is_original": False,
+        "is_forwarded": True,
+    }
+    artwork = {"aid": link.id, "type": link.type}
     # can be ignored for this one
-    if not (art := get_links(link)):
-        log.warning("Forward: Couldn't get content: '%s'.", link.link)
-    else:
+    if art := get_links(link):
         notify(update, art=art)
         art = art._asdict()
-        artwork["files"] = extract_media_ids(art)
+    if not (a := get_artwork(**artwork)):
+        if art:
+            artwork["files"] = extract_media_ids(art)
+        else:
+            log.warning("Forward: Couldn't get content: %r.", link.link)
+        a = ArtWork(**artwork)
+        log.debug("Forward: ArtWork to insert: %s.", artwork)
     # check if it's forwarded from channel in database
     with Session(engine) as s:
         if src := update.effective_message.forward_from_chat:
             if c := s.get(Channel, src.id):
-                artwork["forwarded_channel_id"] = c.id
+                post["forwarded_channel_id"] = c.id
                 log.info("Forward: Source: %r [%d].", c.name, c.cid)
                 if c.id == data.chan:
                     log.error("Forward: Self-forwarding is no allowed.")
@@ -834,13 +845,17 @@ def just_forwarding(
                 log.info("Forward: Source: unknown.")
         else:
             log.info("Forward: Source: not a channel.")
-    artwork.update({"is_original": False, "is_forwarded": True})
     # just forward it
-    if post := forward(update, data.chan):
+    if posted := forward(update, data.chan):
         log.info("Forward: Successfully forwarded to channel.")
-        artwork.update({"post_id": post.message_id, "post_date": post.date})
+        post.update(
+            {
+                "post_id": posted.message_id,
+                "post_date": posted.date,
+            }
+        )
         with Session(engine) as s:
-            s.add(ArtWork(**artwork))
+            s.add(Post(**post, artwork=a))
             s.commit()
             log.debug("Forward: Inserted Post: %s.", post)
         if data.reply:
@@ -848,7 +863,7 @@ def just_forwarding(
                 update,
                 "forwarded",
                 data.chan,
-                post.message_id,
+                posted.message_id,
                 art["link"] if art else link.link,
             )
         if data.media:
@@ -858,7 +873,7 @@ def just_forwarding(
                     info=art,
                     media_filter=["video", "animated_gif"],
                     chat_id=data.chan,
-                    reply_to_message_id=post.message_id,
+                    reply_to_message_id=posted.message_id,
                 ):
                     log.info("Forward: Successfully replied with media.")
             else:
@@ -877,33 +892,40 @@ def just_posting(
     notify(update, func="just_posting")
     # process links
     for link in links:
-        if not check_original(link.id, link.type):
+        if get_artwork(link.id, link.type):
             log.warning("Post: Content is not original: %r.", link.link)
             _warn(update, link)
             continue
+        post = {
+            "channel_id": data.chan,
+            "is_original": True,
+            "is_forwarded": False,
+        }
         if not (art := get_links(link)):
             log.error("Post: Couldn't get content: %r.", link.link)
             _error(update, "Couldn't get this content\\!")
             continue
         notify(update, art=art)
         art = art._asdict()
-        artwork = {"aid": link.id, "type": link.type, "channel_id": data.chan}
-        artwork.update({"is_original": True, "is_forwarded": False})
+        artwork = {
+            "aid": link.id,
+            "type": link.type,
+            "files": extract_media_ids(art),
+        }
         com = {"context": context, "info": art}
         match link.type:
             # twitter links
             case LinkType.TWITTER:
-                if post := send_post(**com, chat_id=data.chan):
+                if posted := send_post(**com, chat_id=data.chan):
                     log.info("Post: Successfully forwarded to channel.")
-                    artwork.update(
+                    post.update(
                         {
-                            "post_id": post.message_id,
-                            "post_date": post.date,
-                            "files": extract_media_ids(art),
+                            "post_id": posted.message_id,
+                            "post_date": posted.date,
                         }
                     )
                     with Session(engine) as s:
-                        s.add(ArtWork(**artwork))
+                        s.add(Post(**post, artwork=ArtWork(**artwork)))
                         s.commit()
                         log.debug("Post: Inserted ArtWork: %s.", artwork)
                         log.debug("Post: Inserted Post: %s.", post)
@@ -912,7 +934,7 @@ def just_posting(
                             update,
                             "posted",
                             data.chan,
-                            post.message_id,
+                            posted.message_id,
                             art["link"],
                         )
                     if data.media:
@@ -920,7 +942,7 @@ def just_posting(
                             **com,
                             media_filter=["video", "animated_gif"],
                             chat_id=data.chan,
-                            reply_to_message_id=post.message_id,
+                            reply_to_message_id=posted.message_id,
                         )
             # pixiv links
             case LinkType.PIXIV:
@@ -929,21 +951,20 @@ def just_posting(
                     or data.pixiv == PixivStyle.INFO_LINK
                     or data.pixiv == PixivStyle.INFO_EMBED_LINK
                 ):
-                    if post := send_media(
+                    if posted := send_media(
                         **com, style=data.pixiv, chat_id=data.chan
                     ):
-                        if not isinstance(post, Message):
-                            post = post[0]
+                        if not isinstance(posted, Message):
+                            posted = posted[0]
                         log.info("Post: Successfully forwarded to channel.")
-                        artwork.update(
+                        post.update(
                             {
-                                "post_id": post.message_id,
-                                "post_date": post.date,
-                                "files": extract_media_ids(art),
+                                "post_id": posted.message_id,
+                                "post_date": posted.date,
                             }
                         )
                         with Session(engine) as s:
-                            s.add(ArtWork(**artwork))
+                            s.add(Post(**post, artwork=ArtWork(**artwork)))
                             s.commit()
                             log.debug("Post: Inserted ArtWork: %s.", artwork)
                             log.debug("Post: Inserted Post: %s.", post)
@@ -953,7 +974,7 @@ def just_posting(
                                 update,
                                 "posted",
                                 data.chan,
-                                post.message_id,
+                                posted.message_id,
                                 art["link"],
                             )
                 else:
@@ -1015,29 +1036,31 @@ def answer_query(update: Update, context: CallbackContext) -> None:
     links = update.effective_message.entities
     link, posted = links[0], links[1:-3]
     text = ", and ".join([f"[here]({esc(post['url'])})" for post in posted])
+    post = {
+        "channel_id": data.chan,
+        "is_original": False,
+        "is_forwarded": False,
+    }
     if not (art := get_links(formatter(link["url"])[0])):
-        log.error("Query: Couldn't get content: %r.", link.link)
         _error(update, "Couldn't get this content\\!")
-        return
+        return log.error("Query: Couldn't get content: %r.", link.link)
     notify(update, art=art)
     art = art._asdict()
+    post["artwork"] = get_artwork(art["id"], art["type"])
     com = {"context": context, "info": art}
-    artwork = {"aid": art["id"], "type": art["type"], "channel_id": data.chan}
-    artwork.update({"is_original": False, "is_forwarded": False})
     match art["type"]:
         # twitter links
         case LinkType.TWITTER:
-            if post := send_post(**com, chat_id=data.chan):
+            if posted := send_post(**com, chat_id=data.chan):
                 log.info("Query: Successfully posted to channel.")
-                artwork.update(
+                post.update(
                     {
-                        "post_id": post.message_id,
-                        "post_date": post.date,
-                        "files": extract_media_ids(art),
+                        "post_id": posted.message_id,
+                        "post_date": posted.date,
                     }
                 )
                 with Session(engine) as s:
-                    s.add(ArtWork(**artwork))
+                    s.add(Post(**post))
                     s.commit()
                     log.debug("Query: Inserted Post: %s.", post)
                 if data.reply:
@@ -1045,7 +1068,7 @@ def answer_query(update: Update, context: CallbackContext) -> None:
                         update,
                         "posted",
                         data.chan,
-                        post.message_id,
+                        posted.message_id,
                         art["link"],
                     )
                 if data.media:
@@ -1053,7 +1076,7 @@ def answer_query(update: Update, context: CallbackContext) -> None:
                         **com,
                         media_filter=["video", "animated_gif"],
                         chat_id=data.chan,
-                        reply_to_message_id=post.message_id,
+                        reply_to_message_id=posted.message_id,
                     )
                 result = 0
             else:
@@ -1065,21 +1088,20 @@ def answer_query(update: Update, context: CallbackContext) -> None:
                 or data.pixiv == PixivStyle.INFO_LINK
                 or data.pixiv == PixivStyle.INFO_EMBED_LINK
             ):
-                if post := send_media(
+                if posted := send_media(
                     **com, style=data.pixiv, chat_id=data.chan
                 ):
-                    if not isinstance(post, Message):
-                        post = post[0]
+                    if not isinstance(posted, Message):
+                        posted = posted[0]
                     log.info("Query: Successfully posted to channel.")
-                    artwork.update(
+                    post.update(
                         {
-                            "post_id": post.message_id,
-                            "post_date": post.date,
-                            "files": extract_media_ids(art),
+                            "post_id": posted.message_id,
+                            "post_date": posted.date,
                         }
                     )
                     with Session(engine) as s:
-                        s.add(ArtWork(**artwork))
+                        s.add(Post(**post))
                         s.commit()
                         log.debug("Query: Inserted Post: %s.", post)
                     if data.reply:
@@ -1088,7 +1110,7 @@ def answer_query(update: Update, context: CallbackContext) -> None:
                             update,
                             "posted",
                             data.chan,
-                            post.message_id,
+                            posted.message_id,
                             art["link"],
                         )
                     result = 0
@@ -1122,33 +1144,46 @@ def handle_post(update: Update, _) -> None:
             return log.error("Handle Post: More than 1 link in post.")
         else:
             link = links[0]
-            artwork = {
-                "aid": link.id,
-                "type": link.type,
+            post = {
                 "channel_id": update.effective_chat.id,
-                "is_original": check_original(link.id, link.type),
+                "is_original": False,
                 "is_forwarded": bool(message.forward_date),
                 "post_id": message.message_id,
                 "post_date": message.date,
             }
+            artwork = {"aid": link.id, "type": link.type}
+            # can be ignored for this one
+            if art := get_links(link):
+                notify(update, art=art)
+                art = art._asdict()
+            if not (a := get_artwork(**artwork)):
+                if art:
+                    artwork["files"] = extract_media_ids(art)
+                else:
+                    log.warning(
+                        "Handle Post: Couldn't get content: %r.", link.link
+                    )
+                a = ArtWork(**artwork)
+                log.debug("Handle Post: ArtWork to insert: %s.", artwork)
+                post["is_original"] = True
             with Session(engine) as s:
                 if (
-                    s.query(ArtWork)
-                    .where(ArtWork.channel_id == update.effective_chat.id)
-                    .where(ArtWork.post_id == message.message_id)
-                    .count()
+                    s.query(Post)
+                    .filter_by(channel_id=update.effective_chat.id)
+                    .filter_by(post_id=message.message_id)
+                    .first()
                 ):
                     log.info("Handle Post: Already in database. Skipping...")
                     return
                 if src := message.forward_from_chat:
                     if c := s.get(Channel, src.id):
-                        artwork["forwarded_channel_id"] = c.id
+                        post["forwarded_channel_id"] = c.id
                         log.info("Handle Post: Source: %r [%d].", c.name, c.cid)
                     else:
                         log.info("Handle Post: Source: unknown.")
                 else:
                     log.info("Handle Post: Source: not a channel.")
-                s.add(ArtWork(**artwork))
+                s.add(Post(**post, artwork=a))
                 s.commit()
                 log.debug("Handle Post: Inserted ArtWork: %s.", artwork)
                 log.debug("Handle Post: Inserted Post: %s.", post)
