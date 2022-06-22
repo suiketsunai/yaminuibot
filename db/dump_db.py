@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 from db import engine
 
 # database models
-from db.models import User, Channel, ArtWork
+from db.models import User, Channel, Post, ArtWork
 
 # get logger
 log = logging.getLogger("yaminuichan.dumper")
@@ -55,5 +55,6 @@ def dump_db() -> None:
     log.info("Dumping all the tables...")
     dumper(User, "users")
     dumper(Channel, "channels")
+    dumper(Post, "posts")
     dumper(ArtWork, "artworks")
     log.info("Done!")

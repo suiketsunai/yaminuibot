@@ -107,8 +107,8 @@ def migrate_db() -> None:
             }
             s.add(p := Post(**post_data))
             log.info("Added post: %s.", p.post_id)
-            # commit changes
-            s.commit()
+        # commit changes
+        s.commit()
     log.info("Done!")
 
     log.info("Finding all not first-posted ArtWorks...")
@@ -121,14 +121,7 @@ def migrate_db() -> None:
             .having(func.count(ArtWork.posts) > 1)
             .all()
         ):
-            for post in artwork.posts[1:]:
-                if post.is_original:
-                    log.info(
-                        "%s: post %s from %s wasn't original.",
-                        artwork.aid,
-                        post.post_id,
-                        post.channel.name,
-                    )
+            for post in sorted(artwork.posts, key=lambda x: x.post_date)[1:]:
                 post.is_original = False
         s.commit()
     log.info("Done!")
