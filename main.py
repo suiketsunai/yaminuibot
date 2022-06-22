@@ -328,21 +328,21 @@ def notify(
     """
     if command:
         sys_log.info(
-            "[%d] '%s' called command: %r.",
+            "[%d] %r called command: %r.",
             update.effective_chat.id,
             update.effective_chat.full_name or update.effective_chat.title,
             command,
         )
     if func:
         sys_log.debug(
-            "[%d] '%s' called function: %r.",
+            "[%d] %r called function: %r.",
             update.effective_chat.id,
             update.effective_chat.full_name or update.effective_chat.title,
             func,
         )
     if art:
         sys_log.info(
-            "[%d] '%s' received content: [%d/%s] %r by [%d/@%s] %r | %s.",
+            "[%d] %r received content: [%d/%s] %r by [%d/@%s] %r | %s.",
             update.effective_chat.id,
             update.effective_chat.full_name or update.effective_chat.title,
             art.id,
@@ -355,7 +355,7 @@ def notify(
         )
     if toggle:
         sys_log.info(
-            "[%d] '%s' called toggler: %r is now %s.",
+            "[%d] %r called toggler: %r is now %s.",
             update.effective_chat.id,
             update.effective_chat.full_name or update.effective_chat.title,
             toggle[0],
@@ -697,10 +697,10 @@ def pixiv_parse(
     ids = list(dict.fromkeys(ids))
     if len(ids) > 10:
         _error(update, "You *can\\'t* choose more than 10 files\\!")
-        return log.error("Pixiv Parse: Can't choose more than 10 files.")
+        return log.error("Pixiv: Can't choose more than 10 files.")
     if max(ids) > count or min(ids) < 1:
         _error(update, f"*Not within* range: \\[`1`\\-`{count}`\\]\\!")
-        return log.error("Pixiv Parse: Not within range: [1-%d].", count)
+        return log.error("Pixiv: Not within range: [1-%d].", count)
     log.debug("Pixiv: Chosen artworks: %r.", ids)
     # save for reuse
     com = {"context": context, "info": art, "order": ids}
@@ -714,7 +714,7 @@ def pixiv_parse(
         if not post:
             _error(update, "Coudn't post\\!")
             return log.error("Pixiv: Couldn't post.")
-        log.info("Pixiv Parse: Successfully posted to channel.")
+        log.info("Pixiv: Successfully posted to channel.")
         if not isinstance(post, Message):
             post = post[0]
         artwork.update(
@@ -729,7 +729,7 @@ def pixiv_parse(
         with Session(engine) as s:
             s.add(ArtWork(**artwork))
             s.commit()
-            log.debug("Pixiv: Inserted ArtWork: %s.", artwork)
+            log.debug("Pixiv: Inserted Post: %s.", post)
         if data.reply:
             send_media(**com, **rep(update), style=data.pixiv)
             _post(
@@ -842,7 +842,7 @@ def just_forwarding(
         with Session(engine) as s:
             s.add(ArtWork(**artwork))
             s.commit()
-            log.debug("Forward: Inserted ArtWork: %s.", artwork)
+            log.debug("Forward: Inserted Post: %s.", post)
         if data.reply:
             _post(
                 update,
@@ -878,11 +878,11 @@ def just_posting(
     # process links
     for link in links:
         if not check_original(link.id, link.type):
-            log.warning("Post: Content is not original: '%s'.", link.link)
+            log.warning("Post: Content is not original: %r.", link.link)
             _warn(update, link)
             continue
         if not (art := get_links(link)):
-            log.error("Post: Couldn't get content: '%s'.", link.link)
+            log.error("Post: Couldn't get content: %r.", link.link)
             _error(update, "Couldn't get this content\\!")
             continue
         notify(update, art=art)
@@ -906,6 +906,7 @@ def just_posting(
                         s.add(ArtWork(**artwork))
                         s.commit()
                         log.debug("Post: Inserted ArtWork: %s.", artwork)
+                        log.debug("Post: Inserted Post: %s.", post)
                     if data.reply:
                         _post(
                             update,
@@ -945,6 +946,7 @@ def just_posting(
                             s.add(ArtWork(**artwork))
                             s.commit()
                             log.debug("Post: Inserted ArtWork: %s.", artwork)
+                            log.debug("Post: Inserted Post: %s.", post)
                         if data.reply:
                             send_media(**com, **rep(update), style=data.pixiv)
                             _post(
@@ -1014,7 +1016,7 @@ def answer_query(update: Update, context: CallbackContext) -> None:
     link, posted = links[0], links[1:-3]
     text = ", and ".join([f"[here]({esc(post['url'])})" for post in posted])
     if not (art := get_links(formatter(link["url"])[0])):
-        log.error("Query: Couldn't get content: '%s'.", link.link)
+        log.error("Query: Couldn't get content: %r.", link.link)
         _error(update, "Couldn't get this content\\!")
         return
     notify(update, art=art)
@@ -1037,7 +1039,7 @@ def answer_query(update: Update, context: CallbackContext) -> None:
                 with Session(engine) as s:
                     s.add(ArtWork(**artwork))
                     s.commit()
-                    log.debug("Query: Inserted ArtWork: %s.", artwork)
+                    log.debug("Query: Inserted Post: %s.", post)
                 if data.reply:
                     _post(
                         update,
@@ -1079,7 +1081,7 @@ def answer_query(update: Update, context: CallbackContext) -> None:
                     with Session(engine) as s:
                         s.add(ArtWork(**artwork))
                         s.commit()
-                        log.debug("Query: Inserted ArtWork: %s.", artwork)
+                        log.debug("Query: Inserted Post: %s.", post)
                     if data.reply:
                         send_media(**com, **rep(update), style=data.pixiv)
                         _post(
@@ -1117,7 +1119,7 @@ def handle_post(update: Update, _) -> None:
             return log.error("Handle Post: No text.")
     if links := formatter(text):
         if len(links) > 1:
-            return
+            return log.error("Handle Post: More than 1 link in post.")
         else:
             link = links[0]
             artwork = {
@@ -1149,6 +1151,7 @@ def handle_post(update: Update, _) -> None:
                 s.add(ArtWork(**artwork))
                 s.commit()
                 log.debug("Handle Post: Inserted ArtWork: %s.", artwork)
+                log.debug("Handle Post: Inserted Post: %s.", post)
     return
 
 
