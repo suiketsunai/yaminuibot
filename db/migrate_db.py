@@ -87,12 +87,13 @@ def migrate_db() -> None:
                     log.info("No-files artwork: %s.", a.aid)
                     a.files = artpost["files"]
             else:
-                a = ArtWork(
-                    aid=artpost["aid"],
-                    type=artpost["type"],
-                    files=artpost["files"],
+                s.add(
+                    a := ArtWork(
+                        aid=artpost["aid"],
+                        type=artpost["type"],
+                        files=artpost["files"],
+                    )
                 )
-                s.add(a)
                 log.info("Added artwork: %s.", a.aid)
             # adding post...
             post_data = {
@@ -104,8 +105,7 @@ def migrate_db() -> None:
                 "is_forwarded": artpost["is_forwarded"],
                 "forwarded_channel_id": artpost["forwarded_channel_id"],
             }
-            p = Post(**post_data)
-            s.add(p)
+            s.add(p := Post(**post_data))
             log.info("Added post: %s.", p.post_id)
             # commit changes
             s.commit()
