@@ -132,7 +132,7 @@ class User(Base):
 
 
 class Post(Base):
-    """Table for storing channel post with artwork data"""
+    """Table for storing channel post data"""
 
     __tablename__ = "post"
     # post record id
@@ -182,7 +182,7 @@ class Post(Base):
 
 
 class ArtWork(Base):
-    """Table for storing channel post with artwork data"""
+    """Table for storing artwork data"""
 
     __tablename__ = "artwork"
     # artwork record id
