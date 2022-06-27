@@ -15,6 +15,9 @@ from extra import LinkType, fake_headers, file_pattern
 # get logger
 log = logging.getLogger("yaminuichan.download")
 
+# max image side length
+IMAGE_LIMIT = 2560
+
 
 def download_media(
     info: dict,
@@ -68,7 +71,7 @@ def download_media(
         if not full:
             try:
                 image = Image.open(media_file)
-                image.thumbnail([1280, 1280])
+                image.thumbnail([IMAGE_LIMIT, IMAGE_LIMIT])
                 image.save(media_file)
             except Exception as ex:
                 log.error("Download Media: Exception occured: %s", ex)
