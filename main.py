@@ -314,7 +314,7 @@ def notify(
     *,
     command: str = None,
     func: str = None,
-    art: ArtWorkMedia = None,
+    art: dict = None,
     toggle: tuple[str, bool] = None,
 ) -> None:
     """Log that something hapened
@@ -345,13 +345,13 @@ def notify(
             "[%d] %r received content: [%d/%s] %r by [%d/@%s] %r | %s.",
             update.effective_chat.id,
             update.effective_chat.full_name or update.effective_chat.title,
-            art.id,
-            art.media,
-            art.desc,
-            art.user_id,
-            art.username,
-            art.user,
-            art.date,
+            art["id"],
+            art["media"],
+            art["desc"],
+            art["user_id"],
+            art["username"],
+            art["user"],
+            art["date"],
         )
     if toggle:
         sys_log.info(
@@ -768,8 +768,8 @@ def no_forwarding(
             log.error("Couldn't get content: %r.", link.link)
             _error(update, "Couldn't get this content\\!")
             continue
-        notify(update, art=art)
         art = art._asdict()
+        notify(update, art=art)
         com = {"context": context, "info": art, **rep(update)}
         match link.type:
             # twitter links
@@ -823,8 +823,8 @@ def just_forwarding(
     artwork = {"aid": link.id, "type": link.type}
     # can be ignored for this one
     if art := get_links(link):
-        notify(update, art=art)
         art = art._asdict()
+        notify(update, art=art)
     if not (a := get_artwork(**artwork)):
         if art:
             artwork["files"] = extract_media_ids(art)
@@ -905,8 +905,8 @@ def just_posting(
             log.error("Post: Couldn't get content: %r.", link.link)
             _error(update, "Couldn't get this content\\!")
             continue
-        notify(update, art=art)
         art = art._asdict()
+        notify(update, art=art)
         artwork = {
             "aid": link.id,
             "type": link.type,
@@ -1044,8 +1044,8 @@ def answer_query(update: Update, context: CallbackContext) -> None:
     if not (art := get_links(formatter(link["url"])[0])):
         _error(update, "Couldn't get this content\\!")
         return log.error("Query: Couldn't get content: %r.", link.link)
-    notify(update, art=art)
     art = art._asdict()
+    notify(update, art=art)
     post["artwork"] = get_artwork(art["id"], art["type"])
     com = {"context": context, "info": art}
     match art["type"]:
@@ -1154,8 +1154,8 @@ def handle_post(update: Update, _) -> None:
             artwork = {"aid": link.id, "type": link.type}
             # can be ignored for this one
             if art := get_links(link):
-                notify(update, art=art)
                 art = art._asdict()
+                notify(update, art=art)
             if not (a := get_artwork(**artwork)):
                 if art:
                     artwork["files"] = extract_media_ids(art)
