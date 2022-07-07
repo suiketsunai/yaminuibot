@@ -48,7 +48,7 @@ from db import engine
 from db.models import User, Post, Channel, ArtWork
 
 # pixiv styles, link types, user data dataclass
-from extra import PixivStyle, LinkType, UserData
+from extra import PixivStyle, LinkType, TwitterStyle, UserData
 
 # expressions
 from extra import pixiv_number, pixiv_regex, telegram_link
@@ -633,19 +633,18 @@ def command_media(update: Update, _) -> None:
     )
 
 
-def command_style(update: Update, _) -> None:
+def command_pixiv_style(update: Update, _) -> None:
     """Change pixiv style."""
-    notify(update, command="/style")
+    notify(update, command="/pixiv_style")
     # get old and new styles
     with Session(engine) as s:
         u = s.get(User, update.effective_chat.id)
-        old_style = u.pixiv_style
-        new_style = PixivStyle.styles[(old_style + 1) % len(PixivStyle.styles)]
-        u.pixiv_style = new_style
+        style = PixivStyle.styles[(u.pixiv_style + 1) % len(PixivStyle.styles)]
+        u.pixiv_style = style
         s.commit()
     # demonstrate new style
     link = esc("https://www.pixiv.net/")
-    match new_style:
+    match style:
         case PixivStyle.IMAGE_LINK:
             style = "\\[ `Image(s)` \\]\n\nLink"
         case PixivStyle.IMAGE_INFO_LINK:
@@ -658,7 +657,32 @@ def command_style(update: Update, _) -> None:
             style = f"[Artwork \\| Author]({link})"
         case _:
             style = "Unknown"
-    _reply(update, f"_Style has been changed to_\\:\n\n{style}")
+    _reply(update, f"_Pixiv style has been changed to_\\:\n\n{style}")
+
+
+def command_twitter_style(update: Update, _) -> None:
+    """Change twitter style."""
+    notify(update, command="/twitter_style")
+    # get old and new styles
+    with Session(engine) as s:
+        u = s.get(User, update.effective_chat.id)
+        style = TwitterStyle.styles[
+            (u.twitter_style + 1) % len(TwitterStyle.styles)
+        ]
+        u.twitter_style = style
+        s.commit()
+    # demonstrate new style
+    link = esc("https://twitter.com/")
+    match style:
+        case TwitterStyle.LINK:
+            style = "Link"
+        case TwitterStyle.IMAGE_LINK:
+            style = "\\[ `Image(s)` \\]\n\nLink"
+        case TwitterStyle.IMAGE_INFO_EMBED_LINK:
+            style = f"\\[ `Image(s)` \\]\n\n[Author \\[@Username\\]]({link})"
+        case _:
+            style = "Unknown"
+    _reply(update, f"_Twitter style has been changed to_\\:\n\n{style}")
 
 
 ################################################################################
@@ -1264,8 +1288,16 @@ def main() -> None:
     # cycle through pixiv styles
     dispatcher.add_handler(
         CommandHandler(
-            "style",
-            command_style,
+            "pixiv_style",
+            command_pixiv_style,
+        )
+    )
+
+    # cycle through twitter styles
+    dispatcher.add_handler(
+        CommandHandler(
+            "twitter_style",
+            command_twitter_style,
         )
     )
 

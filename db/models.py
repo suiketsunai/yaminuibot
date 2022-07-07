@@ -22,7 +22,7 @@ from sqlalchemy.orm import (
 from sqlalchemy_repr import RepresentableBase
 
 # import pixiv styles and link types
-from extra import PixivStyle, LinkType
+from extra import PixivStyle, TwitterStyle, LinkType
 
 # base class
 Base = declarative_base(cls=RepresentableBase)
@@ -120,6 +120,15 @@ class User(Base):
     @validates("pixiv_style")
     def validate_pixiv_style(self, key, value):
         if PixivStyle.validate(value):
+            return value
+        raise ValueError(f"Invalid value {value!r} for field {key!r}.")
+
+    # twitter style
+    twitter_style = Column(Integer, default=0, nullable=False)
+
+    @validates("twitter_style")
+    def validate_twitter_style(self, key, value):
+        if TwitterStyle.validate(value):
             return value
         raise ValueError(f"Invalid value {value!r} for field {key!r}.")
 
