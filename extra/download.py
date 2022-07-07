@@ -65,10 +65,15 @@ def download_media(
         if not reg:
             log.error("Download Media: Couldn't get name or format: %s.", link)
             continue
-        name = reg.group("name") + "." + reg.group("format")
+        name = ".".join([reg.group("name"), reg.group("format")])
         media_file = Path(name)
         media_file.write_bytes(file.content)
-        if not full:
+        if not full and info["media"] in ["illust", "photo"]:
+            log.debug(
+                "Download Media: Fitting into %d x %d size...",
+                IMAGE_LIMIT,
+                IMAGE_LIMIT,
+            )
             try:
                 image = Image.open(media_file)
                 image.thumbnail([IMAGE_LIMIT, IMAGE_LIMIT])

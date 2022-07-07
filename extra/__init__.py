@@ -87,6 +87,7 @@ class UserData:
     reply: bool
     media: bool
     pixiv: int
+    twitter: int
     info: dict
     chan: int = 0
 
