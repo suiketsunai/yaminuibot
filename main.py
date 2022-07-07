@@ -666,6 +666,22 @@ def command_style(update: Update, _) -> None:
 ################################################################################
 
 
+def get_text(update: Update):
+    return "|".join(
+        text
+        for text in [
+            update.effective_message.text,
+            update.effective_message.caption,
+        ]
+        + [
+            entity.url
+            for entity in update.effective_message.entities
+            + update.effective_message.caption_entities
+        ]
+        if text
+    )
+
+
 def pixiv_parse(
     update: Update,
     context: CallbackContext,
@@ -996,11 +1012,10 @@ def universal(update: Update, context: CallbackContext) -> None:
     if not (data := get_user_data(update)):
         return log.error("Universal: No data: [%d].", update.effective_chat.id)
     # check for text
-    if not (text := update.effective_message.text):
-        # check for caption
-        if not (text := update.effective_message.caption):
-            # no text found!
-            return log.error("Universal: No text.")
+    if not (text := get_text(update)):
+        # no text found!
+        return log.error("Universal: No text.")
+    log.debug("Received text: %r.", text)
     # check for links
     if links := formatter(text):
         if len(links) > 1:
@@ -1134,11 +1149,10 @@ def handle_post(update: Update, _) -> None:
     # speed up
     message = update.effective_message
     # check for text
-    if not (text := message.text):
-        # check for caption
-        if not (text := message.caption):
-            # no text found!
-            return log.error("Handle Post: No text.")
+    if not (text := get_text(update)):
+        # no text found!
+        return log.error("Handle Post: No text.")
+    log.debug("Received text: %r.", text)
     if links := formatter(text):
         if len(links) > 1:
             return log.error("Handle Post: More than 1 link in post.")
