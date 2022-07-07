@@ -269,6 +269,10 @@ def send_media(
                 case TwitterStyle.IMAGE_INFO_EMBED_LINK:
                     temp = esc(f'{info["user"]} | @{info["username"]}\n')
                     caption = f'[{temp}]({esc(info["link"])})'
+                case TwitterStyle.IMAGE_INFO_EMBED_LINK_DESC:
+                    temp = esc(f'{info["user"]} | @{info["username"]}\n')
+                    desc = esc(info["desc"])
+                    caption = f'[{temp}]({esc(info["link"])})\n\n{desc}'
                 case _:
                     caption = esc(info["link"])
     media = []
@@ -719,6 +723,8 @@ def command_twitter_style(update: Update, _) -> None:
             style = "\\[ `Image(s)` \\]\n\nLink"
         case TwitterStyle.IMAGE_INFO_EMBED_LINK:
             style = f"\\[ `Image(s)` \\]\n\n[Author \\| @Username]({link})"
+        case TwitterStyle.IMAGE_INFO_EMBED_LINK_DESC:
+            style = f"\\[ `Image(s)` \\]\n\n[Author \\| @Username]({link})\n\nDescription"
         case _:
             style = "Unknown"
     _reply(update, f"_Twitter style has been changed to_\\:\n\n{style}")
