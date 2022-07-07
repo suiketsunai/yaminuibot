@@ -281,6 +281,9 @@ def send_media(
         file.unlink()
     media[0].caption = caption
     media[0].parse_mode = MDV2
+    # answer to pixiv artwork
+    if "reply_to_message_id" in kwargs and "message_id" in info:
+        kwargs["reply_to_message_id"] = info["message_id"]
     return context.bot.send_media_group(
         media=media,
         **kwargs,
@@ -311,13 +314,23 @@ def send_media_doc(
     if media_filter and info["media"] not in media_filter:
         return log.debug("Send Media Doc: Didn't pass media filter.")
     log.debug("Send Media Doc: Passed media filter.")
+    documents = []
     for file in download_media(info, order=order):
-        context.bot.send_document(
-            document=file.read_bytes(),
-            filename=file.name,
-            **kwargs,
+        documents.append(
+            InputMediaDocument(
+                media=file.read_bytes(),
+                filename=file.name,
+                disable_content_type_detection=True,
+            )
         )
         file.unlink()
+    # answer to pixiv artwork
+    if "reply_to_message_id" in kwargs and "message_id" in info:
+        kwargs["reply_to_message_id"] = info["message_id"]
+    context.bot.send_media_group(
+        media=documents,
+        **kwargs,
+    )
 
 
 def forward(update: Update, channel: int) -> Message:
@@ -558,6 +571,7 @@ def pixiv_save(update: Update, art: dict) -> None:
     notify(update, func="pixiv_save")
     with Session(engine) as s:
         u = s.get(User, update.effective_chat.id)
+        art["message_id"] = update.effective_message.message_id
         u.last_info = art
         s.commit()
     log.debug("Added last info to user [%d].", update.effective_chat.id)
