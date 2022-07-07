@@ -24,6 +24,19 @@ class PixivStyle:
         return value in cls.styles
 
 
+# twitter styles
+class TwitterStyle:
+    styles = (
+        LINK,
+        IMAGE_LINK,
+        IMAGE_INFO_EMBED_LINK,
+    ) = range(3)
+
+    @classmethod
+    def validate(cls, value: int):
+        return value in cls.styles
+
+
 # link types
 class LinkType:
     types = (
@@ -74,6 +87,7 @@ class UserData:
     reply: bool
     media: bool
     pixiv: int
+    twitter: int
     info: dict
     chan: int = 0
 

@@ -18,6 +18,8 @@ from telegram import (
     Message,
     Update,
     InputMediaPhoto,
+    InputMediaVideo,
+    InputMediaDocument,
     InlineKeyboardButton,
 )
 
@@ -48,7 +50,7 @@ from db import engine
 from db.models import User, Post, Channel, ArtWork
 
 # pixiv styles, link types, user data dataclass
-from extra import PixivStyle, LinkType, UserData
+from extra import PixivStyle, LinkType, TwitterStyle, UserData
 
 # expressions
 from extra import pixiv_number, pixiv_regex, telegram_link
@@ -234,26 +236,48 @@ def send_media(
     if not info:
         return log.error("Send Media: No info supplied.")
     caption = ""
-    match style:
-        case PixivStyle.IMAGE_LINK:
-            caption = esc(info["link"])
-        case PixivStyle.IMAGE_INFO_LINK:
-            caption = esc(f'{info["desc"]} | {info["user"]}\n{info["link"]}')
-        case PixivStyle.IMAGE_INFO_EMBED_LINK:
-            temp = esc(f'{info["desc"]} | {info["user"]}\n')
-            caption = f'[{temp}]({esc(info["link"])})'
-        case PixivStyle.INFO_LINK:
-            caption = esc(f'{info["desc"]} | {info["user"]}\n{info["link"]}')
-            return send_post(context, text=caption, **kwargs)
-        case PixivStyle.INFO_EMBED_LINK:
-            temp = esc(f'{info["desc"]} | {info["user"]}\n')
-            caption = f'[{temp}]({esc(info["link"])})'
-            return send_post(context, text=caption, **kwargs)
-        case _:
-            caption = esc(info["link"])
+    match info["type"]:
+        case LinkType.PIXIV:
+            match style:
+                case PixivStyle.IMAGE_LINK:
+                    caption = esc(info["link"])
+                case PixivStyle.IMAGE_INFO_LINK:
+                    caption = esc(
+                        f'{info["desc"]} | {info["user"]}\n{info["link"]}'
+                    )
+                case PixivStyle.IMAGE_INFO_EMBED_LINK:
+                    temp = esc(f'{info["desc"]} | {info["user"]}\n')
+                    caption = f'[{temp}]({esc(info["link"])})'
+                case PixivStyle.INFO_LINK:
+                    caption = esc(
+                        f'{info["desc"]} | {info["user"]}\n{info["link"]}'
+                    )
+                    return send_post(context, text=caption, **kwargs)
+                case PixivStyle.INFO_EMBED_LINK:
+                    temp = esc(f'{info["desc"]} | {info["user"]}\n')
+                    caption = f'[{temp}]({esc(info["link"])})'
+                    return send_post(context, text=caption, **kwargs)
+                case _:
+                    caption = esc(info["link"])
+        case LinkType.TWITTER:
+            match style:
+                case TwitterStyle.LINK:
+                    caption = esc(info["link"])
+                    return send_post(context, text=caption, **kwargs)
+                case TwitterStyle.IMAGE_LINK:
+                    caption = esc(info["link"])
+                case TwitterStyle.IMAGE_INFO_EMBED_LINK:
+                    temp = esc(f'{info["user"]} | @{info["username"]}\n')
+                    caption = f'[{temp}]({esc(info["link"])})'
+                case _:
+                    caption = esc(info["link"])
     media = []
     for file in download_media(info, full=False, order=order):
-        media.append(InputMediaPhoto(file.read_bytes()))
+        match info["media"]:
+            case "video" | "animated_gif":
+                media.append(InputMediaVideo(file.read_bytes()))
+            case _:
+                media.append(InputMediaPhoto(file.read_bytes()))
         file.unlink()
     media[0].caption = caption
     media[0].parse_mode = MDV2
@@ -492,6 +516,7 @@ def get_user_data(update: Update) -> UserData | None:
                 u.reply_mode,
                 u.media_mode,
                 u.pixiv_style,
+                u.twitter_style,
                 u.last_info,
             )
             if u.forward_mode:
@@ -633,19 +658,18 @@ def command_media(update: Update, _) -> None:
     )
 
 
-def command_style(update: Update, _) -> None:
+def command_pixiv_style(update: Update, _) -> None:
     """Change pixiv style."""
-    notify(update, command="/style")
+    notify(update, command="/pixiv_style")
     # get old and new styles
     with Session(engine) as s:
         u = s.get(User, update.effective_chat.id)
-        old_style = u.pixiv_style
-        new_style = PixivStyle.styles[(old_style + 1) % len(PixivStyle.styles)]
-        u.pixiv_style = new_style
+        style = PixivStyle.styles[(u.pixiv_style + 1) % len(PixivStyle.styles)]
+        u.pixiv_style = style
         s.commit()
     # demonstrate new style
     link = esc("https://www.pixiv.net/")
-    match new_style:
+    match style:
         case PixivStyle.IMAGE_LINK:
             style = "\\[ `Image(s)` \\]\n\nLink"
         case PixivStyle.IMAGE_INFO_LINK:
@@ -658,7 +682,32 @@ def command_style(update: Update, _) -> None:
             style = f"[Artwork \\| Author]({link})"
         case _:
             style = "Unknown"
-    _reply(update, f"_Style has been changed to_\\:\n\n{style}")
+    _reply(update, f"_Pixiv style has been changed to_\\:\n\n{style}")
+
+
+def command_twitter_style(update: Update, _) -> None:
+    """Change twitter style."""
+    notify(update, command="/twitter_style")
+    # get old and new styles
+    with Session(engine) as s:
+        u = s.get(User, update.effective_chat.id)
+        style = TwitterStyle.styles[
+            (u.twitter_style + 1) % len(TwitterStyle.styles)
+        ]
+        u.twitter_style = style
+        s.commit()
+    # demonstrate new style
+    link = esc("https://twitter.com/")
+    match style:
+        case TwitterStyle.LINK:
+            style = "Link"
+        case TwitterStyle.IMAGE_LINK:
+            style = "\\[ `Image(s)` \\]\n\nLink"
+        case TwitterStyle.IMAGE_INFO_EMBED_LINK:
+            style = f"\\[ `Image(s)` \\]\n\n[Author \\| @Username]({link})"
+        case _:
+            style = "Unknown"
+    _reply(update, f"_Twitter style has been changed to_\\:\n\n{style}")
 
 
 ################################################################################
@@ -679,6 +728,15 @@ def get_text(update: Update):
             + update.effective_message.caption_entities
         ]
         if text
+    )
+
+
+def check_message_media(update: Update):
+    return bool(
+        update.effective_message.animation
+        or update.effective_message.document
+        or update.effective_message.photo
+        or update.effective_message.video
     )
 
 
@@ -760,7 +818,6 @@ def pixiv_parse(
     else:
         if data.reply:
             send_media(**com, **rep(update), style=data.pixiv)
-            _reply(update, f"Sending files\\.\\.\\.")
         send_media_doc(**com, **rep(update))
     # upload to cloud
     upload_media(info=art, order=ids, user=update.effective_chat.id)
@@ -791,7 +848,7 @@ def no_forwarding(
             # twitter links
             case LinkType.TWITTER:
                 if data.reply:
-                    send_post(**com)
+                    send_media(**com, style=data.twitter)
                 send_media_doc(**com)
             # one pixiv link
             case LinkType.PIXIV:
@@ -802,7 +859,6 @@ def no_forwarding(
                 log.info("There's only 1 artwork.")
                 if data.reply:
                     send_media(**com, style=data.pixiv)
-                    _reply(update, f"Sending a file\\.\\.\\.")
                 send_media_doc(**com)
         # upload to cloud
         upload_media(art, user=update.effective_chat.id)
@@ -882,7 +938,7 @@ def just_forwarding(
                 posted.message_id,
                 art["link"] if art else link.link,
             )
-        if data.media:
+        if data.media and not check_message_media(update):
             if art:
                 if send_media_doc(
                     context=context,
@@ -932,8 +988,12 @@ def just_posting(
         match link.type:
             # twitter links
             case LinkType.TWITTER:
-                if posted := send_post(**com, chat_id=data.chan):
+                if posted := send_media(
+                    **com, style=data.twitter, chat_id=data.chan
+                ):
                     log.info("Post: Successfully forwarded to channel.")
+                    if not isinstance(posted, Message):
+                        posted = posted[0]
                     post.update(
                         {
                             "post_id": posted.message_id,
@@ -953,7 +1013,7 @@ def just_posting(
                             posted.message_id,
                             art["link"],
                         )
-                    if data.media:
+                    if data.media and data.twitter == TwitterStyle.LINK:
                         send_media_doc(
                             **com,
                             media_filter=["video", "animated_gif"],
@@ -970,9 +1030,9 @@ def just_posting(
                     if posted := send_media(
                         **com, style=data.pixiv, chat_id=data.chan
                     ):
+                        log.info("Post: Successfully forwarded to channel.")
                         if not isinstance(posted, Message):
                             posted = posted[0]
-                        log.info("Post: Successfully forwarded to channel.")
                         post.update(
                             {
                                 "post_id": posted.message_id,
@@ -1066,8 +1126,12 @@ def answer_query(update: Update, context: CallbackContext) -> None:
     match art["type"]:
         # twitter links
         case LinkType.TWITTER:
-            if posted := send_post(**com, chat_id=data.chan):
+            if posted := send_media(
+                **com, style=data.twitter, chat_id=data.chan
+            ):
                 log.info("Query: Successfully posted to channel.")
+                if not isinstance(posted, Message):
+                    posted = posted[0]
                 post.update(
                     {
                         "post_id": posted.message_id,
@@ -1086,7 +1150,7 @@ def answer_query(update: Update, context: CallbackContext) -> None:
                         posted.message_id,
                         art["link"],
                     )
-                if data.media:
+                if data.media and data.twitter == TwitterStyle.LINK:
                     send_media_doc(
                         **com,
                         media_filter=["video", "animated_gif"],
@@ -1106,9 +1170,9 @@ def answer_query(update: Update, context: CallbackContext) -> None:
                 if posted := send_media(
                     **com, style=data.pixiv, chat_id=data.chan
                 ):
+                    log.info("Query: Successfully posted to channel.")
                     if not isinstance(posted, Message):
                         posted = posted[0]
-                    log.info("Query: Successfully posted to channel.")
                     post.update(
                         {
                             "post_id": posted.message_id,
@@ -1274,8 +1338,16 @@ def main() -> None:
     # cycle through pixiv styles
     dispatcher.add_handler(
         CommandHandler(
-            "style",
-            command_style,
+            "pixiv_style",
+            command_pixiv_style,
+        )
+    )
+
+    # cycle through twitter styles
+    dispatcher.add_handler(
+        CommandHandler(
+            "twitter_style",
+            command_twitter_style,
         )
     )
 
