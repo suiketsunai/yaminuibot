@@ -1,4 +1,4 @@
-\[ `HELP v\.4\.0` *\:* `2022\.03\.15` \]
+\[ `HELP v\.4\.0` *\:* `2022\.07\.07` \]
 
 /help — show this very message\.
 
@@ -20,7 +20,9 @@ If you send _*several*_ links at once in one message, *all twitter links will be
 
 \[ `OTHER COMMANDS` \]
 
-/style — cycle pixiv post styles\. Only *5 styles* are available right now\.
+/pixiv_style — cycle pixiv post styles\. Only *5 styles* are available\.
+
+/twitter_style — cycle twitter post styles\. Only *3 styles* are available\.
 
 /cancel — cancel current operation\. *Use it in cases when you want to shut this bot up*\.
 
