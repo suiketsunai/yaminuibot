@@ -272,7 +272,7 @@ def send_media(
                 case TwitterStyle.IMAGE_INFO_EMBED_LINK_DESC:
                     temp = esc(f'{info["user"]} | @{info["username"]}\n')
                     desc = esc(info["desc"])
-                    caption = f'[{temp}]({esc(info["link"])})\n\n{desc}'
+                    caption = f'[{temp}]({esc(info["link"])})\n{desc}'
                 case _:
                     caption = esc(info["link"])
     media = []
