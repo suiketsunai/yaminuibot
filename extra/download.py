@@ -77,7 +77,7 @@ def download_media(
             try:
                 image = Image.open(media_file)
                 image.thumbnail([IMAGE_LIMIT, IMAGE_LIMIT])
-                image.save(media_file)
+                image.save(media_file, format="png", optimize=True)
             except Exception as ex:
                 log.error("Download Media: Exception occured: %s", ex)
         yield media_file
