@@ -383,11 +383,13 @@ def notify(
         )
     if art:
         sys_log.info(
-            "[%d] %r received content: [%d/%s] %r by [%d/@%s] %r | %s.",
+            "[%d] %r received content: [%02d|%d/%s] %r : %r by [%d/@%s] %r | %s.",
             update.effective_chat.id,
             update.effective_chat.full_name or update.effective_chat.title,
+            art["type"],
             art["id"],
             art["media"],
+            art["title"] if art["title"] else "×",
             art["desc"],
             art["user_id"],
             art["username"],

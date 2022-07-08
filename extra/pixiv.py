@@ -63,7 +63,7 @@ def get_pixiv_media(illust: dict) -> ArtWorkMedia:
         illust.user.account,
         illust.create_date,
         illust.title,
-        illust.desc,
+        illust.caption,
         links[0],
         links[1],
     )
@@ -134,5 +134,6 @@ def get_pixiv_links(pixiv_id: int) -> ArtWorkMedia:
                     tries += 1
                     log.debug("Trying again [%s]...", tries)
         else:
+            log.debug("Response: %r.", json_result.illust)
             return get_pixiv_media(json_result.illust)
     return None
