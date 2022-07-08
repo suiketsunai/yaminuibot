@@ -1,4 +1,4 @@
-\[ `HELP v\.5\.0` *\:* `2022\.07\.07` \]
+\[ `HELP v\.5\.2` *\:* `2022\.07\.08` \]
 
 /help — show this very message\.
 
@@ -20,7 +20,7 @@ If you send _*several*_ links at once in one message, *all twitter links will be
 
 \[ `OTHER COMMANDS` \]
 
-/pixiv\_style — cycle pixiv post styles\. Only *5 styles* are available\.
+/pixiv\_style — cycle pixiv post styles\. Only *6 styles* are available\.
 
 /twitter\_style — cycle twitter post styles\. Only *4 styles* are available\.
 

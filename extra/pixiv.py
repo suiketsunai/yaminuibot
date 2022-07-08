@@ -63,6 +63,7 @@ def get_pixiv_media(illust: dict) -> ArtWorkMedia:
         illust.user.account,
         illust.create_date,
         illust.title,
+        illust.desc,
         links[0],
         links[1],
     )

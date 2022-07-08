@@ -22,6 +22,7 @@ ArtWorkMedia = namedtuple(
         "user",
         "username",
         "date",
+        "title",
         "desc",
         "links",
         "thumbs",

@@ -145,6 +145,7 @@ def get_twitter_links(tweet_id: int) -> ArtWorkMedia:
             user.name,
             user.username,
             res.data.created_at,
+            None,
             text.strip(),
             links[0],
             links[1],

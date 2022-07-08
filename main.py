@@ -235,46 +235,46 @@ def send_media(
     """
     if not info:
         return log.error("Send Media: No info supplied.")
+    user, username, title, desc, link = (
+        esc(info["user"]),
+        esc(info["username"]),
+        esc(info["title"]),
+        esc(info["desc"]),
+        esc(info["link"]),
+    )
     caption = ""
     match info["type"]:
         case LinkType.PIXIV:
             match style:
                 case PixivStyle.IMAGE_LINK:
-                    caption = esc(info["link"])
+                    caption = link
                 case PixivStyle.IMAGE_INFO_LINK:
-                    caption = esc(
-                        f'{info["desc"]} | {info["user"]}\n{info["link"]}'
-                    )
+                    caption = f"{title} \\| {user}\n{link}"
                 case PixivStyle.IMAGE_INFO_EMBED_LINK:
-                    temp = esc(f'{info["desc"]} | {info["user"]}\n')
-                    caption = f'[{temp}]({esc(info["link"])})'
+                    caption = f"[{title} \\| {user}]({link})"
+                case PixivStyle.IMAGE_INFO_EMBED_LINK_DESC:
+                    caption = f"[{user} \\| @{username}]({link})\n\n**{title}**\n\n{desc}"
                 case PixivStyle.INFO_LINK:
-                    caption = esc(
-                        f'{info["desc"]} | {info["user"]}\n{info["link"]}'
-                    )
+                    caption = f"{title} \\| {user}\n{link}"
                     return send_post(context, text=caption, **kwargs)
                 case PixivStyle.INFO_EMBED_LINK:
-                    temp = esc(f'{info["desc"]} | {info["user"]}\n')
-                    caption = f'[{temp}]({esc(info["link"])})'
+                    caption = f"[{title} \\| {user}]({link})"
                     return send_post(context, text=caption, **kwargs)
                 case _:
-                    caption = esc(info["link"])
+                    caption = link
         case LinkType.TWITTER:
             match style:
                 case TwitterStyle.LINK:
-                    caption = esc(info["link"])
+                    caption = link
                     return send_post(context, text=caption, **kwargs)
                 case TwitterStyle.IMAGE_LINK:
-                    caption = esc(info["link"])
+                    caption = link
                 case TwitterStyle.IMAGE_INFO_EMBED_LINK:
-                    temp = esc(f'{info["user"]} | @{info["username"]}\n')
-                    caption = f'[{temp}]({esc(info["link"])})'
+                    caption = f"[{user} \\| @{username}]({link})"
                 case TwitterStyle.IMAGE_INFO_EMBED_LINK_DESC:
-                    temp = esc(f'{info["user"]} | @{info["username"]}\n')
-                    desc = esc(info["desc"])
-                    caption = f'[{temp}]({esc(info["link"])})\n{desc}'
+                    caption = f"[{user} \\| @{username}]({link})\n\n{desc}"
                 case _:
-                    caption = esc(info["link"])
+                    caption = link
     media = []
     for file in download_media(info, full=False, order=order):
         match info["media"]:
@@ -691,9 +691,11 @@ def command_pixiv_style(update: Update, _) -> None:
         case PixivStyle.IMAGE_LINK:
             style = "\\[ `Image(s)` \\]\n\nLink"
         case PixivStyle.IMAGE_INFO_LINK:
-            style = "\\[ `Image(s)` \\]\n\nArtwork \\| Author\nLink"
+            style = "\\[ `Image(s)` \\]\n\nTitle \\| Author\nLink"
         case PixivStyle.IMAGE_INFO_EMBED_LINK:
-            style = f"\\[ `Image(s)` \\]\n\n[Artwork \\| Author]({link})"
+            style = f"\\[ `Image(s)` \\]\n\n[Title \\| Author]({link})"
+        case PixivStyle.IMAGE_INFO_EMBED_LINK_DESC:
+            style = f"\\[ `Image(s)` \\]\n\n[Author \\| @Username]({link})\n\n**Title**\n\nDescription"
         case PixivStyle.INFO_LINK:
             style = "Artwork \\| Author\nLink"
         case PixivStyle.INFO_EMBED_LINK:
