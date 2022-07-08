@@ -578,7 +578,7 @@ def pixiv_save(update: Update, art: dict) -> None:
         art["message_id"] = update.effective_message.message_id
         u.last_info = art
         s.commit()
-    log.debug("Added last info to user [%d].", update.effective_chat.id)
+    log.debug("Pixiv: Added last info to user [%d].", update.effective_chat.id)
     # prompt user to choose illustrations
     _reply(
         update,
@@ -858,8 +858,12 @@ def no_forwarding(
     # process links
     for link in links:
         if not (art := get_links(link)):
-            log.error("Couldn't get content: %r.", link.link)
-            _error(update, "Couldn't get this content\\!")
+            _error(
+                update,
+                f"[This content]({link.link}) can\\'t be found or "
+                "downloaded\\. If this seems to be wrong, try again later\\.",
+            )
+            log.error("No Forward: Couldn't get content: %r.", link.link)
             continue
         art = art._asdict()
         notify(update, art=art)
@@ -873,10 +877,10 @@ def no_forwarding(
             # one pixiv link
             case LinkType.PIXIV:
                 if len(art["links"]) > 1:
-                    log.info("There's more than 1 artwork.")
+                    log.info("No Forward: There's more than 1 artwork.")
                     pixiv_save(update, art)
                     return
-                log.info("There's only 1 artwork.")
+                log.info("No Forward: There's only 1 artwork.")
                 if data.reply:
                     send_media(**com, style=data.pixiv)
                 send_media_doc(**com)
@@ -994,8 +998,12 @@ def just_posting(
             "is_forwarded": False,
         }
         if not (art := get_links(link)):
+            _error(
+                update,
+                f"[This content]({link.link}) can\\'t be found or "
+                "downloaded\\. If this seems to be wrong, try again later\\.",
+            )
             log.error("Post: Couldn't get content: %r.", link.link)
-            _error(update, "Couldn't get this content\\!")
             continue
         art = art._asdict()
         notify(update, art=art)
@@ -1095,7 +1103,7 @@ def universal(update: Update, context: CallbackContext) -> None:
     if not (text := get_text(update)):
         # no text found!
         return log.error("Universal: No text.")
-    log.debug("Received text: %r.", text)
+    log.debug("Universal: Received text: %r.", text)
     # check for links
     if links := formatter(text):
         if len(links) > 1:
@@ -1137,7 +1145,11 @@ def answer_query(update: Update, context: CallbackContext) -> None:
         "is_forwarded": False,
     }
     if not (art := get_links(formatter(link["url"])[0])):
-        _error(update, "Couldn't get this content\\!")
+        _error(
+            update,
+            f"[This content]({link['url']}) can\\'t be found or "
+            "downloaded\\. If this seems to be wrong, try again later\\.",
+        )
         return log.error("Query: Couldn't get content: %r.", link.link)
     art = art._asdict()
     notify(update, art=art)
@@ -1236,7 +1248,7 @@ def handle_post(update: Update, _) -> None:
     if not (text := get_text(update)):
         # no text found!
         return log.error("Handle Post: No text.")
-    log.debug("Received text: %r.", text)
+    log.debug("Handle Post: Received text: %r.", text)
     if links := formatter(text):
         if len(links) > 1:
             return log.error("Handle Post: More than 1 link in post.")
