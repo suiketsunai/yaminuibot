@@ -115,7 +115,7 @@ def get_twitter_links(tweet_id: int) -> ArtWorkMedia:
             "duration_ms",
         ],
     )
-    log.debug("Response: %s.", res)
+    log.debug("Response: %r.", res)
     if error := res.errors:
         return log.error("%s: %s", error[0]["title"], error[0]["detail"])
     if "media" not in res.includes:
@@ -145,6 +145,7 @@ def get_twitter_links(tweet_id: int) -> ArtWorkMedia:
             user.name,
             user.username,
             res.data.created_at,
+            "",
             text.strip(),
             links[0],
             links[1],

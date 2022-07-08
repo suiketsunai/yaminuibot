@@ -15,9 +15,10 @@ class PixivStyle:
         IMAGE_LINK,
         IMAGE_INFO_LINK,
         IMAGE_INFO_EMBED_LINK,
+        IMAGE_INFO_EMBED_LINK_DESC,
         INFO_LINK,
         INFO_EMBED_LINK,
-    ) = range(5)
+    ) = range(6)
 
     @classmethod
     def validate(cls, value: int):
