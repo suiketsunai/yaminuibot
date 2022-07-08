@@ -253,7 +253,7 @@ def send_media(
                 case PixivStyle.IMAGE_INFO_EMBED_LINK:
                     caption = f"[{title} \\| {user}]({link})"
                 case PixivStyle.IMAGE_INFO_EMBED_LINK_DESC:
-                    caption = f"[{user} \\| @{username}]({link})\n\n**{title}**\n\n{desc}"
+                    caption = f"[{user} \\| @{username}]({link})\n\n*{title}*\n\n{desc}"
                 case PixivStyle.INFO_LINK:
                     caption = f"{title} \\| {user}\n{link}"
                     return send_post(context, text=caption, **kwargs)
@@ -695,7 +695,7 @@ def command_pixiv_style(update: Update, _) -> None:
         case PixivStyle.IMAGE_INFO_EMBED_LINK:
             style = f"\\[ `Image(s)` \\]\n\n[Title \\| Author]({link})"
         case PixivStyle.IMAGE_INFO_EMBED_LINK_DESC:
-            style = f"\\[ `Image(s)` \\]\n\n[Author \\| @Username]({link})\n\n**Title**\n\nDescription"
+            style = f"\\[ `Image(s)` \\]\n\n[Author \\| @Username]({link})\n\n*Title*\n\nDescription"
         case PixivStyle.INFO_LINK:
             style = "Artwork \\| Author\nLink"
         case PixivStyle.INFO_EMBED_LINK:
