@@ -6,6 +6,9 @@ from pathlib import Path
 # http requests
 import requests
 
+# file extension check
+from magic import from_buffer as mfb
+
 # working with images
 from PIL import Image
 
@@ -65,7 +68,7 @@ def download_media(
         if not reg:
             log.error("Download Media: Couldn't get name or format: %s.", link)
             continue
-        name = ".".join([reg.group("name"), reg.group("format")])
+        name = f"{reg['name']}.{mfb(file.content, mime=True).split('/')[1]}"
         media_file = Path(name)
         media_file.write_bytes(file.content)
         if not full and info["media"] in ["illust", "photo"]:
@@ -79,5 +82,5 @@ def download_media(
                 image.thumbnail([IMAGE_LIMIT, IMAGE_LIMIT])
                 image.save(media_file, format="png", optimize=True)
             except Exception as ex:
-                log.error("Download Media: Exception occured: %s", ex)
+                log.error("Download Media: Exception occured: %s.", ex)
         yield media_file
