@@ -6,9 +6,6 @@ import logging
 from pathlib import Path
 from functools import partial
 
-# working with env
-from dotenv import load_dotenv
-
 # working with database
 from sqlalchemy.orm import Session
 
@@ -77,13 +74,10 @@ from extra.download import download_media
 from extra.upload import upload_media, upload_log
 
 # dumping db
-from db.dump_db import dump_db
+# from db.dump_db import dump_db
 
 # migrating db
-from db.migrate_db import migrate_db
-
-# load .env file
-load_dotenv()
+# from db.migrate_db import migrate_db
 
 # setup loggers
 log = logging.getLogger("yaminuichan.app")
@@ -1105,6 +1099,7 @@ def universal(update: Update, context: CallbackContext) -> None:
         return log.error("Universal: No data: [%d].", update.effective_chat.id)
     # check for text
     if not (text := get_text(update)):
+        log.info("Universal: Received update: %r.", update)
         # no text found!
         return log.error("Universal: No text.")
     log.debug("Universal: Received text: %r.", text)
@@ -1250,6 +1245,7 @@ def handle_post(update: Update, _) -> None:
     message = update.effective_message
     # check for text
     if not (text := get_text(update)):
+        log.info("Handle Post: Received update: %r.", update)
         # no text found!
         return log.error("Handle Post: No text.")
     log.debug("Handle Post: Received text: %r.", text)
