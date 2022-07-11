@@ -51,9 +51,9 @@ def upload(file: Path, link: str, kind: str = "file") -> None:
                 log.info("%s %r already exists.", kind.capitalize(), name)
             break
         except Exception as ex:
-            log.error("Exception occured: %s", ex)
+            log.error("Exception occured: %s.", ex)
     else:
-        log.error("Run out of attempts.")
+        log.error("Error: Run out of attempts.")
         log.error("Couldn't upload %s %r.", kind, name)
 
 

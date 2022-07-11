@@ -43,15 +43,15 @@ def get_file_handler() -> logging.FileHandler | None:
             try:
                 root_log.info("Creating log directory...")
                 log_dir.mkdir()
-                root_log.info("Created log directory: '%s'.", log_dir.resolve())
+                root_log.info("Created log directory: %r.", log_dir.resolve())
             except Exception as ex:
-                root_log.error("Exception occured: %s", ex)
+                root_log.error("Exception occured: %s.", ex)
                 root_log.info("Can't execute program.")
                 quit()
         log_date = date_run.strftime(file_log["date"])
         log_name = f'{file_log["pref"]}{log_date}.log'
         log_file = log_dir / log_name
-        root_log.info("Logging to file: '%s'.", log_name)
+        root_log.info("Logging to file: %r.", log_name)
         # add file handler
         fh = logging.FileHandler(log_file, encoding="utf-8")
         fh.setFormatter(logging.Formatter(file_log["form"]))

@@ -131,7 +131,7 @@ def get_twitter_links(tweet_id: int) -> ArtWorkMedia:
         log.warning("Unexpected error occured: no links.")
         return None
     else:
-        text = res.data.text.replace(res.data.entities["urls"][-1]["url"], "")
+        text = res.data.text.rsplit(res.data.entities["urls"][-1]["url"], 1)[0]
         for url in res.data.entities["urls"]:
             text = text.replace(url["url"], url["expanded_url"])
         return ArtWorkMedia(
