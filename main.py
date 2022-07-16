@@ -361,25 +361,26 @@ def notify(
         art (ArtWorkMedia, optional): art object. Defaults to None.
         toggle (tuple[str, bool]m optional): toggler info. Defaults to None.
     """
+    chat = update.effective_chat
     if command:
         sys_log.info(
             "[%d] %r called command: %r.",
-            update.effective_chat.id,
-            update.effective_chat.full_name or update.effective_chat.title,
+            chat.id,
+            chat.full_name or chat.title,
             command,
         )
     if func:
         sys_log.debug(
             "[%d] %r called function: %r.",
-            update.effective_chat.id,
-            update.effective_chat.full_name or update.effective_chat.title,
+            chat.id,
+            chat.full_name or chat.title,
             func,
         )
     if art:
         sys_log.info(
             "[%d] %r received content: [%02d|%d/%s] %r : %r by [%d/@%s] %r | %s.",
-            update.effective_chat.id,
-            update.effective_chat.full_name or update.effective_chat.title,
+            chat.id,
+            chat.full_name or chat.title,
             art["type"],
             art["id"],
             art["media"],
@@ -393,8 +394,8 @@ def notify(
     if toggle:
         sys_log.info(
             "[%d] %r called toggler: %r is now %s.",
-            update.effective_chat.id,
-            update.effective_chat.full_name or update.effective_chat.title,
+            chat.id,
+            chat.full_name or chat.title,
             toggle[0],
             switcher[toggle[1]],
         )
