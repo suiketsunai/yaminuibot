@@ -118,35 +118,38 @@ def get_twitter_links(tweet_id: int) -> ArtWorkMedia:
     log.debug("Response: %r.", res)
     if error := res.errors:
         return log.error("%s: %s", error[0]["title"], error[0]["detail"])
-    if "media" not in res.includes:
-        return log.error("No media in tweet!")
-    media = [media for media in res.includes["media"]]
-    user = res.includes["users"][0]
-    kind = media[0].type
+    if not (media := res.includes.get("media", None)):
+        return log.error("Exception occured: No media.")
+    user, kind = res.includes["users"][0], media[0].type
     if kind == "photo":
         links = get_twitter_media(tweet_id, kind, [e.url for e in media])
     else:
         links = get_twitter_media(tweet_id, kind)
     if not links[0]:
-        log.warning("Unexpected error occured: no links.")
-        return None
-    else:
-        text = res.data.text.rsplit(res.data.entities["urls"][-1]["url"], 1)[0]
-        for url in res.data.entities["urls"]:
-            text = text.replace(url["url"], url["expanded_url"])
-        return ArtWorkMedia(
-            link_dict["twitter"]["link"].format(
-                id=tweet_id, author=user.username
-            ),
-            LinkType.TWITTER,
-            tweet_id,
-            kind,
-            user.id,
-            user.name,
-            user.username,
-            res.data.created_at,
-            "",
-            text.strip(),
-            links[0],
-            links[1],
-        )
+        return log.error("Exception occured: No links.")
+    text, posttext = res.data.text.rsplit(
+        set(
+            url["url"]
+            for url in res.data.entities["urls"]
+            if url.get("media_key", None)
+        ).pop(),
+        1,
+    )
+    if len(posttext) > 0 and posttext[0] == " ":
+        text = "\n\n".join([text, posttext[1:]])
+    for url in res.data.entities["urls"]:
+        text = text.replace(url["url"], url["expanded_url"])
+    return ArtWorkMedia(
+        link_dict["twitter"]["link"].format(id=tweet_id, author=user.username),
+        LinkType.TWITTER,
+        tweet_id,
+        kind,
+        user.id,
+        user.name,
+        user.username,
+        res.data.created_at,
+        "",
+        text.strip(),
+        links[0],
+        links[1],
+    )
