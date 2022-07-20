@@ -1402,7 +1402,9 @@ def main() -> None:
     # handle text messages
     dispatcher.add_handler(
         MessageHandler(
-            Filters.chat_type.private & ~Filters.command,
+            Filters.chat_type.private
+            & ~Filters.command
+            & ~Filters.update.edited_message,
             universal,
         )
     )
@@ -1413,7 +1415,9 @@ def main() -> None:
     # handle channels posts
     dispatcher.add_handler(
         MessageHandler(
-            Filters.chat_type.channel & ~Filters.command,
+            Filters.chat_type.channel
+            & ~Filters.command
+            & ~Filters.update.edited_channel_post,
             handle_post,
         )
     )
