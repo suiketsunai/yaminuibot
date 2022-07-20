@@ -62,7 +62,7 @@ from extra import BotState
 from extra.loggers import root_log
 
 # namedtuples
-from extra.namedtuples import ArtWorkMedia, Link
+from extra.namedtuples import Link
 
 # helpers
 from extra.helpers import formatter, get_links, get_post_link, extract_media_ids
@@ -1150,7 +1150,7 @@ def answer_query(update: Update, context: CallbackContext) -> None:
             f"[This content]({link['url']}) can\\'t be found or "
             "downloaded\\. If this seems to be wrong, try again later\\.",
         )
-        return log.error("Query: Couldn't get content: %r.", link.link)
+        return log.error("Query: Couldn't get content: %r.", link["url"])
     art = art._asdict()
     notify(update, art=art)
     post["artwork"] = get_artwork(art["id"], art["type"])
