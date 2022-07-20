@@ -19,7 +19,10 @@ from extra import LinkType, fake_headers, file_pattern
 log = logging.getLogger("yaminuichan.download")
 
 # max image side length
-IMAGE_LIMIT = 2560
+IM_MAX = (2560, 2560)
+
+# shrinked max image side length
+IM_SHR = (2240, 2240)
 
 
 def download_media(
@@ -40,7 +43,7 @@ def download_media(
         Iterator[Path | None]: downloaded file
     """
     if not info:
-        return log.error("Download Media: No info supplied.")
+        return log.error("No info supplied.")
     if info["type"] == LinkType.PIXIV:
         headers = {
             "user-agent": "PixivIOSApp/7.13.3 (iOS 14.6; iPhone13,2)",
@@ -59,28 +62,34 @@ def download_media(
     else:
         links = info["links"][:10]
     for link in links:
-        file = requests.get(
+        media = requests.get(
             link,
             headers=headers,
             allow_redirects=True,
         )
         reg = re.search(file_pattern, link)
         if not reg:
-            log.error("Download Media: Couldn't get name or format: %s.", link)
+            log.error("Couldn't get name or format: %s.", link)
             continue
-        name = f"{reg['name']}.{mfb(file.content, mime=True).split('/')[1]}"
-        media_file = Path(name)
-        media_file.write_bytes(file.content)
+        name = f"{reg['name']}.{mfb(media.content, mime=True).split('/')[1]}"
+        file = Path(name)
+        file.write_bytes(media.content)
         if not full and info["media"] in ["illust", "photo"]:
-            log.debug(
-                "Download Media: Fitting into %d x %d size...",
-                IMAGE_LIMIT,
-                IMAGE_LIMIT,
-            )
             try:
-                image = Image.open(media_file)
-                image.thumbnail([IMAGE_LIMIT, IMAGE_LIMIT])
-                image.save(media_file, format="png", optimize=True)
+                im = Image.open(file)
+                log.debug("Original size: %d x %d.", *im.size)
+                log.debug("Fitting into %d x %d...", *IM_MAX)
+                im.thumbnail(IM_MAX)
+                log.debug("New size: %d x %d.", *im.size)
+                im.save(file, format="webp", lossless=True, optimize=True)
+                if (size := file.stat().st_size) > 10 << 20:
+                    log.warning("File is bigger 10 MB: %d.", size)
+                    file.write_bytes(media.content)
+                    im = Image.open(file)
+                    log.debug("Fitting into %d x %d...", *IM_SHR)
+                    im.thumbnail(IM_SHR)
+                    log.debug("New size: %d x %d.", *im.size)
+                    im.save(file, format="webp", lossless=True, optimize=True)
             except Exception as ex:
-                log.error("Download Media: Exception occured: %s.", ex)
-        yield media_file
+                log.error("Exception occured: %s.", ex)
+        yield file
