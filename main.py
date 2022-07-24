@@ -263,6 +263,8 @@ def send_media(
                     return send_post(context, text=caption, **kwargs)
                 case TwitterStyle.IMAGE_LINK:
                     caption = link
+                case TwitterStyle.IMAGE_LINK_DESC:
+                    caption = f"{link}\n\n{desc}"
                 case TwitterStyle.IMAGE_INFO_EMBED_LINK:
                     caption = f"[{user} \\| @{username}]({link})"
                 case TwitterStyle.IMAGE_INFO_EMBED_LINK_DESC:
@@ -720,6 +722,8 @@ def command_twitter_style(update: Update, _) -> None:
             style = "Link"
         case TwitterStyle.IMAGE_LINK:
             style = "\\[ `Image(s)` \\]\n\nLink"
+        case TwitterStyle.IMAGE_LINK_DESC:
+            style = "\\[ `Image(s)` \\]\n\nLink\n\nnDescription"
         case TwitterStyle.IMAGE_INFO_EMBED_LINK:
             style = f"\\[ `Image(s)` \\]\n\n[Author \\| @Username]({link})"
         case TwitterStyle.IMAGE_INFO_EMBED_LINK_DESC:
