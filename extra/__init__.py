@@ -30,9 +30,10 @@ class TwitterStyle:
     styles = (
         LINK,
         IMAGE_LINK,
+        IMAGE_LINK_DESC,
         IMAGE_INFO_EMBED_LINK,
         IMAGE_INFO_EMBED_LINK_DESC,
-    ) = range(4)
+    ) = range(5)
 
     @classmethod
     def validate(cls, value: int):
