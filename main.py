@@ -723,7 +723,7 @@ def command_twitter_style(update: Update, _) -> None:
         case TwitterStyle.IMAGE_LINK:
             style = "\\[ `Image(s)` \\]\n\nLink"
         case TwitterStyle.IMAGE_LINK_DESC:
-            style = "\\[ `Image(s)` \\]\n\nLink\n\nnDescription"
+            style = "\\[ `Image(s)` \\]\n\nLink\n\nDescription"
         case TwitterStyle.IMAGE_INFO_EMBED_LINK:
             style = f"\\[ `Image(s)` \\]\n\n[Author \\| @Username]({link})"
         case TwitterStyle.IMAGE_INFO_EMBED_LINK_DESC:
